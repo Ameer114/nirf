@@ -625,6 +625,30 @@ thead th:first-child{border-radius:0}
   </div>
 </div>
 
+<!-- ══ LEAVING DATE MODAL ══ -->
+<div id="leaving-date-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--white);border-radius:12px;padding:26px;width:420px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <h3 style="margin:0;color:var(--navy);font-size:16px;display:flex;align-items:center;gap:6px">📅 Mark Faculty as Left</h3>
+      <button onclick="closeLeavingDateModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--g400);line-height:1">&times;</button>
+    </div>
+    <div style="font-size:12px;color:var(--g600);margin-bottom:14px">Specify the leaving date for <b id="modal-fac-name" style="color:var(--blue)">Faculty</b>:</div>
+    <input type="hidden" id="modal-fac-name-val">
+    <input type="hidden" id="modal-fac-sl-val">
+    
+    <div class="fl" style="margin-bottom:12px">
+      <label class="req" style="font-weight:600">Leaving Date</label>
+      <input type="date" id="modal-fac-date" class="inp" style="width:100%;font-size:14px">
+      <div style="font-size:11px;color:var(--g400);margin-top:4px">Enter the official date when the faculty member left DSATM.</div>
+    </div>
+    <div id="modal-fac-msg" style="font-size:12px;min-height:16px;margin-bottom:10px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-out btn-sm" onclick="closeLeavingDateModal()">Cancel</button>
+      <button class="btn btn-red btn-sm" onclick="submitFacultyLeft()">Confirm &amp; Mark as Left</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════
 // CONSTANTS
@@ -747,6 +771,7 @@ let CU=null; // current user
 const DATA_VERSION='rpc-manual-frq-v4';
 function loadStore(){
   try{S=JSON.parse(localStorage.getItem('nirf27')||'{}')}catch(e){S={}}
+  if(S._facultyLoaded) delete S._facultyLoaded;
   if(!S.seeded || S.dataVersion!==DATA_VERSION){
     S.seeded=true; S.dataVersion=DATA_VERSION; S.nirfCycle='2027'; S.dept={}; S.faculty={}; S.exp={}; S.go={}; S.oi={}; S.rpc={}; S.perception={}; S.faculty_mode={}; S.faculty_direct={}; S.pub2026={}; S.audit=[]; S.docs=[];
     DEPTS.forEach(d=>{
@@ -980,11 +1005,14 @@ function calcFaculty(deptId){
     const reasons=[];
     if(!f.qualification) reasons.push('Missing qualification');
     if(!f.gender) reasons.push('Missing gender');
-    if(!f.joining) reasons.push('Missing joining date');
-    const jD=f.joining?new Date(f.joining):null;
-    const lD=f.leaving?new Date(f.leaving):null;
-    if(jD&&jD>JC) reasons.push('Joined after '+cyc().CUTOFF_DISP.join);
-    if(lD&&lD<LC) reasons.push('Left before '+cyc().CUTOFF_DISP.leave);
+    const jStr = f.joining || f.joining_date;
+    const lStr = f.leaving || f.leaving_date;
+    if(!jStr) reasons.push('Missing joining date');
+    const jD=jStr?new Date(jStr):null;
+    const lD=lStr?new Date(lStr):null;
+    if(jD&&!isNaN(jD.getTime())&&jD>JC) reasons.push('Joined after '+cyc().CUTOFF_DISP.join);
+    if(lD&&!isNaN(lD.getTime())&&lD<LC) reasons.push('Left before '+cyc().CUTOFF_DISP.leave);
+    if((f.status==='left' || String(f.currently_working||'').toLowerCase()==='no') && !lStr) reasons.push('Left institution');
     if(reasons.length>0) excluded.push({...f,reasons});
     else included.push(f);
   });
@@ -1237,6 +1265,10 @@ function initApp(){
   document.getElementById('tb-user').textContent=CU.name;
   renderSidebar();
   renderTopbarCycle();
+  if(CU.deptId){
+    fetchDepartmentFacultyFromDB(CU.deptId);
+    fetchDepartmentSSFromDB(CU.deptId);
+  }
   nav('dashboard');
 }
 
@@ -1647,11 +1679,230 @@ function renderDeptDashboard(){
 }
 
 // ══════════════════════════════════════════════════
-// STUDENT STRENGTH
+// STUDENT STRENGTH (MongoDB "student_strength" integration)
 // ══════════════════════════════════════════════════
+async function fetchDepartmentSSFromDB(deptId){
+  if(!deptId) return null;
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/student-strength/${deptId}`);
+    if(!res.ok) return null;
+    const json = await res.json();
+    if(json.success && Array.isArray(json.data)){
+      if(!S.dept[deptId]) S.dept[deptId]={ss:{NT:{},NE:{},NP:{}},status:'draft',completion:0};
+      if(!S.dept[deptId].ss) S.dept[deptId].ss={NT:{},NE:{},NP:{}};
+      json.data.forEach(item => {
+        if(item.YEAR){
+          S.dept[deptId].ss.NT[item.YEAR] = Number(item.NT || 0);
+          S.dept[deptId].ss.NE[item.YEAR] = Number(item.NE || 0);
+          if(item.NP !== undefined) S.dept[deptId].ss.NP[item.YEAR] = Number(item.NP || 0);
+        }
+      });
+      return json.data;
+    }
+  } catch(e){
+    // Network / backend offline fallback
+  }
+  return null;
+}
+
+async function syncDepartmentSSToDB(deptId, records){
+  if(!deptId || !records) return;
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    await fetch(`${apiBase}/api/student-strength/${deptId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records })
+    });
+  } catch(e){}
+}
+
+function showEtlError(msg){
+  alert(msg);
+  const statusEl = document.getElementById('ss-etl-status');
+  if(statusEl){
+    statusEl.innerHTML = `<div class="alt alt-e">⚠️ ${msg}</div>`;
+  }
+}
+
+function uploadStudentStrengthExcel(input){
+  const file = input.files[0];
+  if(!file) return;
+
+  const statusEl = document.getElementById('ss-etl-status');
+  if(statusEl) statusEl.innerHTML = `<div class="alt alt-i">⏳ Processing <b>${file.name}</b> through ETL pipeline...</div>`;
+
+  const reader = new FileReader();
+  reader.onload = async function(e){
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      if(!wb || !wb.SheetNames || wb.SheetNames.length === 0){
+        showEtlError('Invalid excel format: No sheets found in workbook.');
+        input.value = '';
+        return;
+      }
+
+      // Find sheet with student strength or use first sheet
+      let ws = null;
+      for(const name of wb.SheetNames){
+        const s = wb.Sheets[name];
+        const csv = XLSX.utils.sheet_to_csv(s).toUpperCase();
+        if(csv.includes('YEAR') && (csv.includes('NT') || csv.includes('INTAKE'))){
+          ws = s;
+          break;
+        }
+      }
+      if(!ws) ws = wb.Sheets[wb.SheetNames[0]];
+
+      const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if(!rawRows || rawRows.length < 2){
+        showEtlError('Invalid excel format: Sheet appears empty or missing data rows.');
+        input.value = '';
+        return;
+      }
+
+      // Find header row (search first 10 rows)
+      let hdrIdx = -1;
+      let colMap = {};
+      for(let i = 0; i < Math.min(rawRows.length, 10); i++){
+        const row = rawRows[i].map(c => String(c || '').trim().toUpperCase());
+        const yIdx = row.findIndex(c => c === 'YEAR' || c === 'ACADEMIC YEAR' || c === 'ACADEMIC_YEAR');
+        const ntIdx = row.findIndex(c => c === 'NT' || c.includes('SANCTIONED INTAKE') || c === 'INTAKE');
+        const neIdx = row.findIndex(c => c === 'NE' || c.includes('ENROLLED') || c === 'ENROLLMENT');
+        if(yIdx !== -1 && ntIdx !== -1 && neIdx !== -1){
+          hdrIdx = i;
+          colMap.YEAR = yIdx;
+          colMap.NT = ntIdx;
+          colMap.NE = neIdx;
+          colMap.NP = row.findIndex(c => c === 'NP' || c.includes('DOCTORAL') || c.includes('PHD') || c.includes('PH.D'));
+          colMap.DEPARTMENT = row.findIndex(c => c === 'DEPARTMENT' || c === 'DEPT' || c === 'BRANCH');
+          break;
+        }
+      }
+
+      // Fixed column validation
+      if(hdrIdx === -1){
+        showEtlError('Invalid excel format: Required column headers (YEAR, NT, NE) not found.');
+        input.value = '';
+        return;
+      }
+
+      // Extract and strictly validate every data row
+      const parsedRows = [];
+      for(let i = hdrIdx + 1; i < rawRows.length; i++){
+        const r = rawRows[i];
+        if(!r || r.every(cell => String(cell || '').trim() === '')) continue; // Skip empty row
+
+        const yearStr = String(r[colMap.YEAR] || '').trim();
+        const ntStr = String(r[colMap.NT] !== undefined ? r[colMap.NT] : '').trim();
+        const neStr = String(r[colMap.NE] !== undefined ? r[colMap.NE] : '').trim();
+        const npStr = (colMap.NP !== -1 && r[colMap.NP] !== undefined && String(r[colMap.NP]).trim() !== '') 
+          ? String(r[colMap.NP]).trim() 
+          : '0';
+        const deptStr = (colMap.DEPARTMENT !== -1 && r[colMap.DEPARTMENT] !== undefined) 
+          ? String(r[colMap.DEPARTMENT]).trim() 
+          : (CU?.deptId || '');
+
+        // Validation rules
+        if(!yearStr){
+          showEtlError(`Invalid excel format: Missing YEAR on row ${i + 1}.`);
+          input.value = '';
+          return;
+        }
+
+        const ntVal = Number(ntStr);
+        const neVal = Number(neStr);
+        const npVal = Number(npStr);
+
+        if(isNaN(ntVal) || !Number.isInteger(ntVal) || ntVal < 0){
+          showEtlError(`Invalid excel format: Invalid NT value "${ntStr}" on row ${i + 1}. Must be an integer >= 0.`);
+          input.value = '';
+          return;
+        }
+        if(isNaN(neVal) || !Number.isInteger(neVal) || neVal < 0){
+          showEtlError(`Invalid excel format: Invalid NE value "${neStr}" on row ${i + 1}. Must be an integer >= 0.`);
+          input.value = '';
+          return;
+        }
+        if(isNaN(npVal) || !Number.isInteger(npVal) || npVal < 0){
+          showEtlError(`Invalid excel format: Invalid NP value "${npStr}" on row ${i + 1}. Must be an integer >= 0.`);
+          input.value = '';
+          return;
+        }
+
+        parsedRows.push({
+          DEPARTMENT: deptStr || CU?.deptId,
+          YEAR: yearStr,
+          NT: ntVal,
+          NE: neVal,
+          NP: npVal
+        });
+      }
+
+      if(parsedRows.length === 0){
+        showEtlError('Invalid excel format: No data rows found.');
+        input.value = '';
+        return;
+      }
+
+      // Execute ETL Pipeline on backend to override DB tables DATA
+      const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+        ? '' 
+        : 'http://localhost:5000';
+
+      const res = await fetch(`${apiBase}/api/student-strength/etl-pipeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rows: parsedRows,
+          defaultDeptId: CU?.deptId
+        })
+      });
+
+      const json = await res.json();
+      if(!res.ok || !json.success){
+        showEtlError(json.message || 'Invalid excel format');
+        input.value = '';
+        return;
+      }
+
+      // Success: notify and refresh
+      if(statusEl){
+        statusEl.innerHTML = `<div class="alt alt-s">✓ <b>ETL Pipeline Complete:</b> Validated & converted ${parsedRows.length} rows into database tables (${json.departmentsUpdated?.join(', ') || CU?.deptId}).</div>`;
+        setTimeout(() => { if(statusEl) statusEl.innerHTML = ''; }, 4500);
+      }
+      audit(CU?.name || 'User', CU?.deptId || 'ALL', 'Student Strength', `Excel ETL imported ${parsedRows.length} rows`);
+
+      if(CU?.deptId){
+        await fetchDepartmentSSFromDB(CU.deptId);
+      }
+      renderStudentStrength();
+
+    } catch(err){
+      console.error('ETL pipeline error:', err);
+      showEtlError('Invalid excel format: ' + err.message);
+    } finally {
+      input.value = '';
+    }
+  };
+
+  reader.onerror = function(){
+    showEtlError('Invalid excel format: Unable to read file.');
+    input.value = '';
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+
 function renderStudentStrength(){
   const id=CU.deptId;const dept=DEPTS.find(d=>d.id===id);
-  document.getElementById('tb-title').textContent='Student Strength — '+dept.short;
+  document.getElementById('tb-title').textContent='Student Strength — '+(dept?.short||id||'');
   const ss=S.dept[id]?.ss||{NT:{},NE:{},NP:{}};
   document.getElementById('mc').innerHTML=`
     <div class="bc">Dashboard <span>›</span> TLR <span>›</span> Student Strength</div>
@@ -1659,15 +1910,16 @@ function renderStudentStrength(){
     <div class="ssub">Sub-parameter SS — Including Ph.D students</div>
     <div class="alt alt-i">Enter sanctioned intake (NT) and enrolled students (NE) for each academic year. Scores calculate automatically.</div>
     <div class="card mb4">
-      <div class="ch"><h3>Year-wise Student Data</h3><div class="flex gap2"><button class="btn btn-out btn-sm" onclick="alert('Upload .xlsx with: Year | NT | NE columns')">⬆ Upload Excel</button><button class="btn btn-red btn-sm" onclick="clearSSData()">🗑 Clear Data</button></div></div>
+      <div class="ch"><h3>Year-wise Student Data</h3><div class="flex gap2"><label class="btn btn-out btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">⬆ Upload Excel<input type="file" id="ss-excel-input" accept=".xlsx,.xls" style="display:none" onchange="uploadStudentStrengthExcel(this)"></label><button class="btn btn-red btn-sm" onclick="clearSSData()">🗑 Clear Data</button></div></div>
+      <div id="ss-etl-status" style="padding:0 24px;margin-bottom:8px"></div>
       <div class="cb">
         <table>
           <thead><tr><th>Academic Year</th><th>NT — Sanctioned Intake</th><th>NE — Enrolled Students</th><th>NE/NT Ratio</th></tr></thead>
           <tbody>
             ${cyc().SS_YRS.map(y=>`<tr>
               <td><b>${y}</b></td>
-              <td><input type="number" class="inp" id="nt-${y.replace('-','_')}" value="${ss.NT?.[y]||0}" min="0" onchange="saveSSData()" style="width:150px"></td>
-              <td><input type="number" class="inp" id="ne-${y.replace('-','_')}" value="${ss.NE?.[y]||0}" min="0" onchange="saveSSData()" style="width:150px"></td>
+              <td><input type="number" class="inp" id="nt-${y.replace('-','_')}" value="${ss.NT?.[y]??0}" min="0" oninput="updateSSRatios()" onchange="saveSSData()" style="width:150px"></td>
+              <td><input type="number" class="inp" id="ne-${y.replace('-','_')}" value="${ss.NE?.[y]??0}" min="0" oninput="updateSSRatios()" onchange="saveSSData()" style="width:150px"></td>
               <td id="rtt-${y.replace('-','_')}" style="font-weight:700;color:var(--blue)">—</td>
             </tr>`).join('')}
           </tbody>
@@ -1675,12 +1927,16 @@ function renderStudentStrength(){
         <div style="margin-top:18px;border-top:1px solid var(--g200);padding-top:16px">
           <div class="frow fc2">
             <div class="fl"><label class="req">NP — Doctoral Students (${cyc().SS_YRS[0]})</label>
-              <input type="number" id="np-latest" class="inp" value="${ss.NP?.[cyc().SS_YRS[0]]||0}" min="0" onchange="saveSSData()">
+              <input type="number" id="np-latest" class="inp" value="${ss.NP?.[cyc().SS_YRS[0]]??0}" min="0" oninput="saveSSData()" onchange="saveSSData()">
               <div class="hint">Ph.D scholars enrolled in current academic year</div>
             </div>
           </div>
         </div>
-        <button class="btn btn-pri" style="margin-top:12px" onclick="calcSSPreview()">Calculate SS Score →</button>
+        <div style="display:flex;gap:10px;margin-top:14px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-pri" onclick="calcSSPreview()">Calculate SS Score →</button>
+          <button class="btn btn-green" id="btn-save-ss" onclick="saveStudentStrengthToDB()">💾 Save</button>
+          <span id="save-status-msg" style="font-size:12px;font-weight:600"></span>
+        </div>
       </div>
     </div>
     <div class="card mb4" id="ss-calc" style="display:none">
@@ -1689,6 +1945,37 @@ function renderStudentStrength(){
     </div>
     <div class="card"><div class="ch"><h3>Validation</h3></div><div class="cb" id="ss-val"></div></div>`;
   updateSSRatios();calcSSPreview();
+
+  // Asynchronously fetch and populate latest student strength from MongoDB database "student_strength"
+  fetchDepartmentSSFromDB(id).then(records => {
+    if(records && records.length > 0){
+      cyc().SS_YRS.forEach(y => {
+        const k = y.replace('-', '_');
+        const ntEl = document.getElementById('nt-' + k);
+        const neEl = document.getElementById('ne-' + k);
+        const found = records.find(r => r.YEAR === y);
+        if(found){
+          if(ntEl) ntEl.value = found.NT;
+          if(neEl) neEl.value = found.NE;
+        } else {
+          if(ntEl) ntEl.value = 0;
+          if(neEl) neEl.value = 0;
+        }
+      });
+      const npEl = document.getElementById('np-latest');
+      const latestYr = cyc().SS_YRS[0];
+      const latestRec = records.find(r => r.YEAR === latestYr);
+      if(npEl && latestRec && latestRec.NP !== undefined){
+        npEl.value = latestRec.NP;
+        if(!S.dept[id]) S.dept[id]={ss:{NT:{},NE:{},NP:{}},status:'draft',completion:0};
+        if(!S.dept[id].ss) S.dept[id].ss={NT:{},NE:{},NP:{}};
+        if(!S.dept[id].ss.NP) S.dept[id].ss.NP={};
+        S.dept[id].ss.NP[latestYr] = Number(latestRec.NP);
+      }
+      updateSSRatios();
+      calcSSPreview();
+    }
+  });
 }
 
 function updateSSRatios(){
@@ -1705,14 +1992,72 @@ function saveSSData(){
   const id=CU.deptId;
   if(!S.dept[id]) S.dept[id]={ss:{NT:{},NE:{},NP:{}},status:'draft',completion:0};
   if(!S.dept[id].ss) S.dept[id].ss={NT:{},NE:{},NP:{}};
+  const recordsToSync = [];
   cyc().SS_YRS.forEach(y=>{
     const k=y.replace('-','_');
-    S.dept[id].ss.NT[y]=Number(document.getElementById('nt-'+k)?.value||0);
-    S.dept[id].ss.NE[y]=Number(document.getElementById('ne-'+k)?.value||0);
+    const ntVal = Number(document.getElementById('nt-'+k)?.value||0);
+    const neVal = Number(document.getElementById('ne-'+k)?.value||0);
+    S.dept[id].ss.NT[y]=ntVal;
+    S.dept[id].ss.NE[y]=neVal;
+    recordsToSync.push({ YEAR: y, NT: ntVal, NE: neVal, NP: S.dept[id].ss.NP?.[y] || 0 });
   });
-  S.dept[id].ss.NP[cyc().SS_YRS[0]]=Number(document.getElementById('np-latest')?.value||0);
+  const npLatest = Number(document.getElementById('np-latest')?.value||0);
+  S.dept[id].ss.NP[cyc().SS_YRS[0]]=npLatest;
+  if(recordsToSync.length > 0) recordsToSync[0].NP = npLatest;
+
   save();audit(CU.name,id,'Student Strength','Data updated');
   updateSSRatios();
+}
+
+async function saveStudentStrengthToDB(){
+  const id=CU.deptId;
+  if(!id) return;
+  saveSSData();
+  const latestYr=cyc().SS_YRS[0];
+  const npLatest=Number(document.getElementById('np-latest')?.value||0);
+
+  const records = cyc().SS_YRS.map(y => {
+    const k = y.replace('-', '_');
+    const ntVal = Number(document.getElementById('nt-' + k)?.value || 0);
+    const neVal = Number(document.getElementById('ne-' + k)?.value || 0);
+    const npVal = (y === latestYr) ? npLatest : (S.dept[id]?.ss?.NP?.[y] || 0);
+    return { YEAR: y, NT: ntVal, NE: neVal, NP: npVal };
+  });
+
+  const btn = document.getElementById('btn-save-ss');
+  const statusEl = document.getElementById('save-status-msg');
+  if(btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  if(statusEl) { statusEl.textContent = 'Saving to database...'; statusEl.style.color = 'var(--blue)'; }
+
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/student-strength/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records })
+    });
+    const resData = await res.json();
+    if(resData.success){
+      if(statusEl){
+        statusEl.textContent = `✓ Saved to database (${latestYr} & year data updated)!`;
+        statusEl.style.color = 'var(--green)';
+        setTimeout(() => { if(statusEl) statusEl.textContent = ''; }, 3500);
+      }
+      audit(CU.name, id, 'Student Strength', `Saved student strength data to MongoDB for ${latestYr}`);
+    } else {
+      throw new Error(resData.message || 'Save failed');
+    }
+  } catch(err){
+    console.error('Failed to save to MongoDB:', err);
+    if(statusEl){
+      statusEl.textContent = '✗ Error saving to DB: ' + err.message;
+      statusEl.style.color = 'var(--red)';
+    }
+  } finally {
+    if(btn) { btn.disabled = false; btn.textContent = '💾 Save'; }
+  }
 }
 
 function calcSSPreview(){
@@ -1745,9 +2090,58 @@ function calcSSPreview(){
 }
 
 // ══════════════════════════════════════════════════
-// FACULTY MODULE
+// FACULTY MODULE (MongoDB "faculty_data" integration)
 // ══════════════════════════════════════════════════
-function renderFaculty(){
+
+async function fetchDepartmentFacultyFromDB(deptId){
+  if(!deptId) return null;
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/faculty/${deptId}?_t=${Date.now()}`, { cache: 'no-cache' });
+    if(!res.ok) return null;
+    const json = await res.json();
+    if(json.success && Array.isArray(json.data)){
+      if(!S.faculty) S.faculty = {};
+      S.faculty[deptId] = json.data.map((item, idx) => {
+        const isLeft = (
+          String(item.status || '').toLowerCase() === 'left' ||
+          String(item.currently_working || '').toLowerCase() === 'no' ||
+          String(item.currently_working || '').toLowerCase() === 'left' ||
+          Boolean(item.leaving_date)
+        );
+        const lDate = item.leaving_date || item.leaving || null;
+        const jDate = item.joining_date || item.joining || null;
+        return {
+          id: 'F_' + (item.sl_no || (idx + 1)),
+          sl_no: item.sl_no || (idx + 1),
+          name: item.name,
+          age: (item.age !== undefined && item.age !== null) ? Number(item.age) : null,
+          designation: item.designation || '',
+          gender: item.gender || '',
+          qualification: item.qualification || '',
+          experience: Number(item.experience) || 0,
+          currently_working: isLeft ? 'Left' : 'Yes',
+          joining: jDate,
+          joining_date: jDate,
+          leaving: isLeft ? lDate : null,
+          leaving_date: isLeft ? lDate : null,
+          association: item.association_type || 'Regular',
+          association_type: item.association_type || 'Regular',
+          status: isLeft ? 'left' : 'active'
+        };
+      });
+      save();
+      return S.faculty[deptId];
+    }
+  } catch(e){
+    // Network / backend offline fallback
+  }
+  return null;
+}
+
+function renderFaculty(activeTabId, skipFetch){
   const id=CU.deptId;const dept=DEPTS.find(d=>d.id===id);
   document.getElementById('tb-title').textContent='Faculty — '+dept.short;
   if(!S.faculty_mode) S.faculty_mode={};
@@ -1756,11 +2150,23 @@ function renderFaculty(){
   const fac=calcFaculty(id);
   const dir=S.faculty_direct[id]||{F_available:0,N_phd:0,F1:0,F2:0,F3:0,F_female:0};
 
+  // Always fetch fresh records from MongoDB database asynchronously in the background
+  if(!skipFetch){
+    fetchDepartmentFacultyFromDB(id).then(records => {
+      if(records && CURRENT_PAGE === 'faculty'){
+        const currentActiveTab = document.querySelector('.tabs .tab.active')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1] || activeTabId || 'fac-entry';
+        renderFaculty(currentActiveTab, true);
+      }
+    });
+  }
+
+  const activeTab = activeTabId || 'fac-entry';
+
   document.getElementById('mc').innerHTML=`
     <div class="bc">Dashboard <span>›</span> TLR <span>›</span> Faculty</div>
     <div class="flex ic jb mb4">
-      <div><div class="stitle">Faculty Data Management</div>
-        <div class="ssub">${mode==='system'?'System Mode — Data derived from uploaded/entered faculty records':'Direct Entry Mode — Faculty counts entered manually'}</div>
+      <div><div class="stitle">Faculty Data Management — ${dept.name} (${id})</div>
+        <div class="ssub">${mode==='system'?'System Mode — Connected to MongoDB database "faculty_data" (table: '+id+')':'Direct Entry Mode — Faculty counts entered manually'}</div>
       </div>
       <button class="btn btn-red" onclick="clearAllFaculty()">🗑 Clear All</button>
     </div>
@@ -1777,9 +2183,9 @@ function renderFaculty(){
               </div>
               <span style="font-size:14px;font-weight:700;color:var(--navy)">Mode A — System (Excel / Manual Entry)</span>
             </div>
-            <p style="font-size:12px;color:var(--g600);margin-left:28px">Upload faculty Excel or add records one by one. The system automatically computes F Available, Ph.D count, experience groups, female count and applies NIRF cutoffs: <b>Joined on or before ${cyc().CUTOFF_DISP.join}</b> &amp; <b>Not left before ${cyc().CUTOFF_DISP.leave}</b> (i.e. <code>join_cutoff = ${cyc().JOIN_CUTOFF}</code>, <code>leave_cutoff = ${cyc().LEAVE_CUTOFF}</code>) for <b>${cyc().label}</b>. Only PH.D / M.TECH / M.E. qualifications counted.</p>
+            <p style="font-size:12px;color:var(--g600);margin-left:28px">Upload faculty Excel or add records. Data is stored directly in MongoDB database <b>faculty_data</b> under table <b>${id}</b> and shown in the Included section. Automatically computes F Available, Ph.D count, experience groups, and applies NIRF cutoffs: <b>Joined on or before ${cyc().CUTOFF_DISP.join}</b> &amp; <b>Not left before ${cyc().CUTOFF_DISP.leave}</b>.</p>
             <div style="margin-left:28px;margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-              <span class="badge b-done">Auto-calculates</span>
+              <span class="badge b-done">MongoDB Connected</span>
               <span class="badge b-app">Cutoff filtering</span>
               <span class="badge b-sub">Excel upload</span>
             </div>
@@ -1806,34 +2212,37 @@ function renderFaculty(){
       <div class="mc"><div class="mlbl">F Available</div><div class="mval">${fac.F_available}</div><div class="msub">Included in NIRF</div></div>
       <div class="mc grn"><div class="mlbl">Ph.D Faculty</div><div class="mval">${fac.N_phd}</div><div class="msub">FRA = ${fac.FRA.toFixed(2)}</div></div>
       <div class="mc gld"><div class="mlbl">Female Faculty</div><div class="mval">${fac.F_female}</div><div class="msub">of ${fac.F_available} total</div></div>
-      ${mode==='system'?`<div class="mc red"><div class="mlbl">Excluded</div><div class="mval">${fac.excluded.length}</div><div class="msub">Not counted</div></div>`
-      :`<div class="mc amb"><div class="mlbl">F1 + F2 + F3</div><div class="mval">${fac.F1+fac.F2+fac.F3}</div><div class="msub">F1:${fac.F1} | F2:${fac.F2} | F3:${fac.F3}</div></div>`}
+      ${mode==='system'?`<div class="mc red"><div class="mlbl">Excluded</div><div class="mval">${fac.excluded.length}</div><div class="msub">Not counted</div></div>`:''}
+      <div class="mc tel"><div class="mlbl">Faculty &lt; 8 Yrs Exp (F1)</div><div class="mval">${fac.F1}</div><div class="msub">&le; 96 mo (Score: ${fac.F1s.toFixed(2)}/3)</div></div>
+      <div class="mc amb"><div class="mlbl">Faculty 8–15 Yrs Exp (F2)</div><div class="mval">${fac.F2}</div><div class="msub">97–180 mo (Score: ${fac.F2s.toFixed(2)}/3)</div></div>
+      <div class="mc nvy"><div class="mlbl">Faculty &gt; 15 Yrs Exp (F3)</div><div class="mval">${fac.F3}</div><div class="msub">&gt; 180 mo (Score: ${fac.F3s.toFixed(2)}/4)</div></div>
       <div class="mc ppl"><div class="mlbl">FSR Score</div><div class="mval">${fac.FSR_score.toFixed(2)}</div><div class="msub">Max: 30</div></div>
-      <div class="mc nvy"><div class="mlbl">FQE Score</div><div class="mval">${fac.FQE.toFixed(2)}</div><div class="msub">Max: 30</div></div>
+      <div class="mc grn"><div class="mlbl">FQE Score</div><div class="mval">${fac.FQE.toFixed(2)}</div><div class="msub">Max: 30</div></div>
     </div>
 
     <!-- MODE A CONTENT -->
     ${mode==='system'?`
+    ${S._facLastActionMsg ? `<div class="alt alt-i mb3" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span>${S._facLastActionMsg}</span><button onclick="S._facLastActionMsg=null;renderFaculty(activeTab)" style="background:none;border:none;cursor:pointer;font-weight:700;font-size:16px">&times;</button></div>` : ''}
     <div class="tabs">
-      <div class="tab active" onclick="swTab(this,'fac-entry')">Entry / Upload</div>
-      <div class="tab" onclick="swTab(this,'fac-inc')">Included (${fac.included.length})</div>
-      <div class="tab" onclick="swTab(this,'fac-exc')">Excluded (${fac.excluded.length})</div>
-      <div class="tab" onclick="swTab(this,'fac-calc')">FSR &amp; FQE Calculations</div>
+      <div class="tab ${activeTab==='fac-entry'?'active':''}" onclick="swTab(this,'fac-entry')">Entry / Upload</div>
+      <div class="tab ${activeTab==='fac-inc'?'active':''}" onclick="swTab(this,'fac-inc')">Included (${fac.included.length})</div>
+      <div class="tab ${activeTab==='fac-exc'?'active':''}" onclick="swTab(this,'fac-exc')">Excluded (${fac.excluded.length})</div>
+      <div class="tab ${activeTab==='fac-calc'?'active':''}" onclick="swTab(this,'fac-calc')">FSR &amp; FQE Calculations</div>
     </div>
-    <div class="tbc active" id="fac-entry">
+    <div class="tbc ${activeTab==='fac-entry'?'active':''}" id="fac-entry">
       <div class="g2 mb4">
         <div class="card"><div class="ch"><h3>Method 1 — Excel Upload</h3>
             <button class="btn btn-out btn-sm" onclick="downloadFacultySample()">⬇ Sample Excel</button>
           </div>
           <div class="cb">
             <div class="alt alt-i" style="margin-bottom:12px">
-              <div><b>Required columns (in order):</b> Srno | Name | Designation | Gender | Qualification | Experience (In Months) | Currently Working With | Joining Date | Leaving Date | Association Type<br>
+              <div><b>Required columns:</b> Sl. No. | Name of the Faculty | Age | Designation | Gender | Qualification | Experience (in Months) | Currently working with institution? | Joining Date | Leaving Date | Association Type<br>
               <span style="font-size:11px">Qualification: Ph.D / M.Tech / M.E. / M.Sc / MBA / B.Tech &nbsp;|&nbsp; Gender: Male / Female &nbsp;|&nbsp; Currently Working: Yes / No &nbsp;|&nbsp; Dates: DD-MM-YYYY or YYYY-MM-DD</span></div>
             </div>
             <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--g300);border-radius:var(--r);padding:26px;cursor:pointer;transition:.15s;background:var(--white)" onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--sky)'" onmouseout="this.style.borderColor='var(--g300)';this.style.background='var(--white)'">
               <div style="font-size:30px">📊</div>
               <p style="font-size:13px;font-weight:600;color:var(--navy);margin-top:8px">Click to upload Faculty Excel (.xlsx)</p>
-              <p style="font-size:11px;color:var(--g400);margin-top:4px">Srno | Name | Designation | Gender | Qualification | Exp(Months) | Currently Working | Joining Date | Leaving Date | Association Type</p>
+              <p style="font-size:11px;color:var(--g400);margin-top:4px">Upload to save into MongoDB table "${id}" in "faculty_data" and load into Included section</p>
               <input type="file" accept=".xlsx,.xls" style="display:none" onchange="uploadFacultyExcel(this)">
             </label>
             <div id="fac-xl-status" style="margin-top:10px"></div>
@@ -1843,45 +2252,74 @@ function renderFaculty(){
           <div class="cb">
             <div class="frow fc2">
               <div class="fl"><label class="req">Faculty Name</label><input type="text" id="f-nm" class="inp" placeholder="Full name"></div>
+              <div class="fl"><label>Age</label><input type="number" id="f-age" class="inp" placeholder="e.g. 38" min="20"></div>
+              <div class="fl"><label>Designation</label><input type="text" id="f-desig" class="inp" placeholder="e.g. Assistant Professor"></div>
               <div class="fl"><label class="req">Gender</label><select id="f-gn" class="inp"><option value="">Select</option><option value="M">Male</option><option value="F">Female</option><option value="O">Other/Transgender</option></select></div>
               <div class="fl"><label class="req">Qualification</label><select id="f-ql" class="inp"><option value="">Select</option><option value="PH.D">Ph.D</option><option value="M.TECH">M.Tech</option><option value="M.E.">M.E.</option><option value="M.SC">M.Sc</option><option value="MBA">MBA</option><option value="B.TECH">B.Tech (only)</option></select></div>
               <div class="fl"><label class="req">Experience (months)</label><input type="number" id="f-ex" class="inp" placeholder="e.g. 84" min="0"></div>
               <div class="fl"><label class="req">Joining Date</label><input type="date" id="f-jn" class="inp"></div>
               <div class="fl"><label>Leaving Date (if left)</label><input type="date" id="f-lv" class="inp"></div>
+              <div class="fl"><label>Association Type</label><select id="f-assoc" class="inp"><option value="Regular">Regular</option><option value="Contractual">Contractual</option><option value="Visitor">Visitor</option><option value="Other">Other</option></select></div>
+              <div class="fl"><label>Status</label><select id="f-st" class="inp"><option value="active">Currently Working</option><option value="left">Left Institution</option></select></div>
             </div>
-            <div class="fl mb4"><label>Status</label><select id="f-st" class="inp"><option value="active">Currently Working</option><option value="left">Left Institution</option></select></div>
-            <button class="btn btn-pri" onclick="addFac()">+ Add Faculty</button>
+            <button class="btn btn-pri mt2" onclick="addFac()">+ Add Faculty</button>
           </div>
         </div>
       </div>
     </div>
-    <div class="tbc" id="fac-inc">
-      <div class="card"><div class="ch"><h3>Included Faculty — Eligible for NIRF Count</h3><button class="btn btn-red btn-sm" onclick="clearAllFaculty()">🗑 Clear All</button></div>
+    <div class="tbc ${activeTab==='fac-inc'?'active':''}" id="fac-inc">
+      <div class="card"><div class="ch"><h3>Included Faculty — Eligible for NIRF Count (Department: ${id})</h3><button class="btn btn-red btn-sm" onclick="clearAllFaculty()">🗑 Clear All</button></div>
         <div class="tw"><table>
-          <thead><tr><th>#</th><th>Name</th><th>Gender</th><th>Qualification</th><th>Exp (mo)</th><th>Exp Group</th><th>Joining</th><th>Status</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Sl. No.</th>
+              <th>Name of the Faculty</th>
+              <th>Age</th>
+              <th>Designation</th>
+              <th>Gender</th>
+              <th>Qualification</th>
+              <th>Experience (in Months)</th>
+              <th style="min-width:140px">Currently working with institution?</th>
+              <th>Joining Date</th>
+              <th>Leaving Date</th>
+              <th>Association Type</th>
+            </tr>
+          </thead>
           <tbody>${fac.included.map((f,i)=>`<tr class="faculty-in">
-            <td>${i+1}</td><td>${f.name}</td><td>${f.gender||'—'}</td>
+            <td>${f.sl_no || (i+1)}</td>
+            <td><b>${f.name}</b></td>
+            <td>${(f.age !== null && f.age !== undefined && f.age !== '') ? f.age : '—'}</td>
+            <td>${f.designation || '—'}</td>
+            <td>${f.gender || '—'}</td>
             <td><span class="badge ${(f.qualification||'').includes('PH.D')?'b-done':'b-pen'}">${f.qualification||'—'}</span></td>
-            <td>${f.experience} <span style="color:var(--g400);font-size:11px">(${(f.experience/12).toFixed(1)}yr)</span></td>
-            <td><span class="badge ${f.experience<=96?'b-dft':f.experience<=180?'b-pen':'b-sub'}">${f.experience<=96?'F1 ≤8yr':f.experience<=180?'F2 8-15yr':'F3 >15yr'}</span></td>
-            <td>${f.joining||'—'}</td>
-            <td>${f.status==='active'?'<span class="badge b-sub">Active</span>':'<span class="badge b-pen">Left</span>'}</td>
-          </tr>`).join('')}${!fac.included.length?'<tr><td colspan="8" class="no-content">No faculty included yet — upload Excel or add manually.</td></tr>':''}</tbody>
+            <td>${f.experience} <span style="color:var(--g400);font-size:11px">(${f.experience<=96?'F1 ≤8yr':f.experience<=180?'F2 8-15yr':'F3 >15yr'})</span></td>
+            <td>
+              <select class="inp inp-sm" style="font-size:12px;padding:3px 8px;font-weight:700;width:auto;border-radius:6px;cursor:pointer;background:${(f.status==='left'||String(f.currently_working||'').toLowerCase()==='no'||String(f.currently_working||'').toLowerCase()==='left')?'var(--red-light)':'var(--green-light)'};color:${(f.status==='left'||String(f.currently_working||'').toLowerCase()==='no'||String(f.currently_working||'').toLowerCase()==='left')?'var(--red)':'var(--green)'};border:1px solid ${(f.status==='left'||String(f.currently_working||'').toLowerCase()==='no'||String(f.currently_working||'').toLowerCase()==='left')?'var(--red)':'var(--green)'}" onchange="changeFacultyWorkingStatus('${(f.name||'').replace(/'/g, "\\'")}', ${f.sl_no || (i+1)}, this.value, this)" title="Change working status (select Left to specify leaving date)">
+                <option value="Yes" ${(f.status!=='left'&&String(f.currently_working||'').toLowerCase()!=='no'&&String(f.currently_working||'').toLowerCase()!=='left')?'selected':''}>Yes</option>
+                <option value="Left" ${(f.status==='left'||String(f.currently_working||'').toLowerCase()==='no'||String(f.currently_working||'').toLowerCase()==='left')?'selected':''}>Left</option>
+              </select>
+            </td>
+            <td>${f.joining || f.joining_date || '—'}</td>
+            <td>${f.leaving || f.leaving_date || '—'}</td>
+            <td>${f.association || f.association_type || 'Regular'}</td>
+          </tr>`).join('')}${!fac.included.length?'<tr><td colspan="11" class="no-content">No faculty included yet — upload Excel or add manually.</td></tr>':''}</tbody>
         </table></div>
       </div>
     </div>
-    <div class="tbc" id="fac-exc">
+    <div class="tbc ${activeTab==='fac-exc'?'active':''}" id="fac-exc">
       <div class="alt alt-w">These faculty are NOT counted in NIRF FSR/FQE calculations. Review reasons below.</div>
       <div class="card"><div class="tw"><table>
-        <thead><tr><th>#</th><th>Name</th><th>Qualification</th><th>Joining</th><th>Leaving</th><th>Reason for Exclusion</th></tr></thead>
+        <thead><tr><th>Sl. No.</th><th>Name</th><th>Designation</th><th>Qualification</th><th>Currently Working</th><th>Joining</th><th>Leaving Date</th><th>Reason for Exclusion</th><th>Action</th></tr></thead>
         <tbody>${fac.excluded.map((f,i)=>`<tr class="faculty-ex">
-          <td>${i+1}</td><td>${f.name}</td><td>${f.qualification||'—'}</td>
-          <td>${f.joining||'—'}</td><td>${f.leaving||'—'}</td>
+          <td>${f.sl_no || (i+1)}</td><td><b>${f.name}</b></td><td>${f.designation||'—'}</td><td>${f.qualification||'—'}</td>
+          <td><span class="badge b-pen">${(f.status==='left'||String(f.currently_working||'').toLowerCase()==='no'||String(f.currently_working||'').toLowerCase()==='left') ? 'Left' : (f.currently_working || 'Left')}</span></td>
+          <td>${f.joining||f.joining_date||'—'}</td><td>${f.leaving||f.leaving_date||'—'}</td>
           <td>${f.reasons.map(r=>`<span class="badge b-cor" style="margin:1px">${r}</span>`).join(' ')}</td>
-        </tr>`).join('')}${!fac.excluded.length?'<tr><td colspan="6" class="no-content">No excluded faculty.</td></tr>':''}</tbody>
+          <td><button class="btn btn-out btn-sm" style="font-size:11px;padding:3px 8px" onclick="setFacultyActive('${(f.name||'').replace(/'/g, "\\'")}', ${f.sl_no || (i+1)})" title="Restore to Active">Revert to Active</button></td>
+        </tr>`).join('')}${!fac.excluded.length?'<tr><td colspan="9" class="no-content">No excluded faculty.</td></tr>':''}</tbody>
       </table></div></div>
     </div>
-    <div class="tbc" id="fac-calc">
+    <div class="tbc ${activeTab==='fac-calc'?'active':''}" id="fac-calc">
       ${facCalcBoxHTML(fac,true)}
     </div>`
 
@@ -1955,17 +2393,164 @@ function swTab(el,target){
   document.getElementById(target)?.classList.add('active');
 }
 
-function addFac(){
+async function addFac(){
   const nm=document.getElementById('f-nm')?.value?.trim();
   if(!nm){alert('Enter faculty name');return}
-  const f={id:'F'+Date.now(),name:nm,
+  const id=CU.deptId;
+  const fRec={
+    sl_no:(S.faculty[id]||[]).length+1,
+    name:nm,
+    age:Number(document.getElementById('f-age')?.value)||null,
+    designation:document.getElementById('f-desig')?.value?.trim()||'',
     gender:document.getElementById('f-gn').value,
     qualification:document.getElementById('f-ql').value,
     experience:Number(document.getElementById('f-ex').value)||0,
-    status:document.getElementById('f-st').value,
-    joining:document.getElementById('f-jn').value||null,
-    leaving:document.getElementById('f-lv').value||null};
-  S.faculty[CU.deptId].push(f);save();audit(CU.name,CU.deptId,'Faculty','Added: '+nm);renderFaculty();
+    currently_working:document.getElementById('f-st').value==='active'?'Yes':'No',
+    joining_date:document.getElementById('f-jn').value||null,
+    leaving_date:document.getElementById('f-lv').value||null,
+    association_type:document.getElementById('f-assoc')?.value||'Regular',
+    status:document.getElementById('f-st').value
+  };
+
+  try{
+    const apiBase=(window.location.protocol.startsWith('http')&&window.location.port==='5000')?'':'http://localhost:5000';
+    await fetch(`${apiBase}/api/faculty/${id}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({faculty:[fRec],replaceAll:false})
+    });
+  }catch(e){}
+
+  await fetchDepartmentFacultyFromDB(id);
+  save();audit(CU.name,id,'Faculty','Added: '+nm);
+  renderFaculty();
+  const incTab=document.querySelector('.tabs .tab[onclick*="fac-inc"]');
+  if(incTab) swTab(incTab,'fac-inc');
+}
+
+// ── WORKING STATUS & LEAVING DATE HANDLERS ──
+let _currentStatusSelectEl = null;
+
+function changeFacultyWorkingStatus(name, sl_no, newStatus, selectEl){
+  _currentStatusSelectEl = selectEl;
+  if(newStatus === 'Left' || newStatus === 'No'){
+    openLeavingDateModal(name, sl_no);
+  } else {
+    if(!confirm(`Mark "${name}" as currently working (Active)? Leaving date will be cleared.`)){
+      if(selectEl) selectEl.value = 'Left';
+      return;
+    }
+    setFacultyActive(name, sl_no);
+  }
+}
+
+function openLeavingDateModal(name, sl_no){
+  const modal = document.getElementById('leaving-date-modal');
+  if(!modal) return;
+  document.getElementById('modal-fac-name').textContent = name;
+  document.getElementById('modal-fac-name-val').value = name;
+  document.getElementById('modal-fac-sl-val').value = sl_no || '';
+  document.getElementById('modal-fac-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('modal-fac-msg').innerHTML = '';
+  modal.style.display = 'flex';
+}
+
+function closeLeavingDateModal(){
+  const modal = document.getElementById('leaving-date-modal');
+  if(modal) modal.style.display = 'none';
+  if(_currentStatusSelectEl){
+    _currentStatusSelectEl.value = 'Yes';
+    _currentStatusSelectEl = null;
+  }
+}
+
+async function submitFacultyLeft(){
+  const name = document.getElementById('modal-fac-name-val')?.value?.trim();
+  const sl_no = document.getElementById('modal-fac-sl-val')?.value;
+  const leavingDate = document.getElementById('modal-fac-date')?.value;
+  const msgEl = document.getElementById('modal-fac-msg');
+
+  if(!leavingDate){
+    if(msgEl) msgEl.innerHTML = '<span style="color:var(--red)">Please select a leaving date.</span>';
+    return;
+  }
+
+  const id = CU.deptId;
+  const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+
+  try {
+    const res = await fetch(`${apiBase}/api/faculty/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        sl_no: sl_no ? Number(sl_no) : undefined,
+        currently_working: 'No',
+        leaving_date: leavingDate,
+        status: 'left'
+      })
+    });
+    const data = await res.json();
+    if(!res.ok || !data.success){
+      console.warn('Backend patch response:', data);
+    }
+  } catch(e){
+    console.warn('Backend update warning:', e.message);
+  }
+
+  // Update in local store
+  if(S.faculty && S.faculty[id]){
+    const rec = S.faculty[id].find(f => (sl_no && f.sl_no == sl_no) || f.name.toLowerCase() === name.toLowerCase());
+    if(rec){
+      rec.currently_working = 'Left';
+      rec.status = 'left';
+      rec.leaving = leavingDate;
+      rec.leaving_date = leavingDate;
+    }
+  }
+
+  save();
+  audit(CU.name, id, 'Faculty', `${name} marked as Left on ${leavingDate}`);
+  _currentStatusSelectEl = null;
+  const modal = document.getElementById('leaving-date-modal');
+  if(modal) modal.style.display = 'none';
+
+  S._facLastActionMsg = `ℹ️ <b>${name}</b> marked as Left with leaving date <b>${leavingDate}</b>. Updated in MongoDB table "${id}".`;
+  renderFaculty('fac-exc', true);
+}
+
+async function setFacultyActive(name, sl_no){
+  const id = CU.deptId;
+  const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+
+  try {
+    await fetch(`${apiBase}/api/faculty/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        sl_no: sl_no ? Number(sl_no) : undefined,
+        currently_working: 'Yes',
+        leaving_date: null,
+        status: 'active'
+      })
+    });
+  } catch(e){}
+
+  if(S.faculty && S.faculty[id]){
+    const rec = S.faculty[id].find(f => (sl_no && f.sl_no == sl_no) || f.name.toLowerCase() === name.toLowerCase());
+    if(rec){
+      rec.currently_working = 'Yes';
+      rec.status = 'active';
+      rec.leaving = null;
+      rec.leaving_date = null;
+    }
+  }
+
+  save();
+  audit(CU.name, id, 'Faculty', `${name} restored to Active`);
+  S._facLastActionMsg = `✓ <b>${name}</b> restored to Active. Leaving date cleared in MongoDB table "${id}".`;
+  renderFaculty('fac-inc', true);
 }
 
 // ── MODE SWITCHER ──
@@ -2037,9 +2622,11 @@ function buildDirScoreCards(fac){
     <div class="mc"><div class="mlbl">F Available</div><div class="mval">${fac.F_available}</div><div class="msub">Total eligible faculty</div></div>
     <div class="mc grn"><div class="mlbl">Ph.D Faculty</div><div class="mval">${fac.N_phd}</div><div class="msub">FRA = ${fac.FRA.toFixed(2)}</div></div>
     <div class="mc gld"><div class="mlbl">Female Faculty</div><div class="mval">${fac.F_female}</div><div class="msub">For OI/WD calculation</div></div>
-    <div class="mc amb"><div class="mlbl">F1 / F2 / F3</div><div class="mval">${fac.F1} / ${fac.F2} / ${fac.F3}</div><div class="msub">Junior / Senior / Principal</div></div>
+    <div class="mc tel"><div class="mlbl">Faculty &lt; 8 Yrs Exp (F1)</div><div class="mval">${fac.F1}</div><div class="msub">&le; 96 mo (Score: ${fac.F1s.toFixed(2)}/3)</div></div>
+    <div class="mc amb"><div class="mlbl">Faculty 8–15 Yrs Exp (F2)</div><div class="mval">${fac.F2}</div><div class="msub">97–180 mo (Score: ${fac.F2s.toFixed(2)}/3)</div></div>
+    <div class="mc nvy"><div class="mlbl">Faculty &gt; 15 Yrs Exp (F3)</div><div class="mval">${fac.F3}</div><div class="msub">&gt; 180 mo (Score: ${fac.F3s.toFixed(2)}/4)</div></div>
     <div class="mc ppl"><div class="mlbl">FSR Score</div><div class="mval">${fac.FSR_score.toFixed(2)}</div><div class="msub">Max: 30</div></div>
-    <div class="mc nvy"><div class="mlbl">FQE Score</div><div class="mval">${fac.FQE.toFixed(2)}</div><div class="msub">Max: 30</div></div>`;
+    <div class="mc grn"><div class="mlbl">FQE Score</div><div class="mval">${fac.FQE.toFixed(2)}</div><div class="msub">Max: 30</div></div>`;
 }
 
 // ── CALC BOX HTML (shared by both modes) ──
@@ -2075,21 +2662,20 @@ function facCalcBoxHTML(fac,inlineOnly){
 }
 
 // ══════════════════════════════════════════════════
-// FACULTY EXCEL UPLOAD — supports DSATM NIRF format
-// Columns: Srno|Name|Designation|Gender|Qualification|Experience(Months)|Currently Working|Joining Date|Leaving Date|Association type
-// Dates stored as JS Date objects (SheetJS cellDates:true) OR Excel serial integers
+// FACULTY EXCEL UPLOAD — MongoDB "faculty_data" pipeline
+// Supports exact attributes from NIRF specification:
+// Sl. No. | Name of the Faculty | Age | Designation | Gender | Qualification | Experience (in Months) | Currently working with institution? | Joining Date | Leaving Date | Association Type
 // ══════════════════════════════════════════════════
 
 function parseExcelDate(raw){
-  // blanks / dashes
   if(raw===null||raw===undefined) return '';
   if(typeof raw==='string'){
     const s=raw.trim();
     if(!s||s==='--'||s==='-'||s==='N/A'||s==='NA') return '';
-    // Excel serial as integer string e.g. "45383" or float "45383.0"
+    // Excel serial as integer string e.g. "45383"
     if(/^\d{4,6}(\.\d*)?$/.test(s)){
       const n=Math.round(parseFloat(s));
-      if(n>2000){ // valid Excel serial (>2000 = post 1905)
+      if(n>2000){
         const d=new Date(Date.UTC(1899,11,30)+n*864e5);
         return isNaN(d)?'':d.toISOString().slice(0,10);
       }
@@ -2099,17 +2685,14 @@ function parseExcelDate(raw){
     if(dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
     // YYYY-MM-DD
     if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    // any other parseable string
     const d=new Date(s);
     return isNaN(d)?'':d.toISOString().slice(0,10);
   }
-  // JS Date object from SheetJS cellDates:true
   if(raw instanceof Date){
     return isNaN(raw.getTime())?'':raw.toISOString().slice(0,10);
   }
-  // Raw integer/float Excel serial
   if(typeof raw==='number'){
-    if(raw<2000) return ''; // too small to be a real date serial
+    if(raw<2000) return '';
     const d=new Date(Date.UTC(1899,11,30)+Math.round(raw)*864e5);
     return isNaN(d)?'':d.toISOString().slice(0,10);
   }
@@ -2117,59 +2700,42 @@ function parseExcelDate(raw){
 }
 
 function normaliseQual(raw){
-  // Normalise to NIRF-standard labels regardless of case/spacing/punctuation
   const u=String(raw||'').trim().toUpperCase().replace(/[\s\.]/g,'');
-  // Ph.D first — catches P.HD, PHD, PH.D, PHDIN etc.
   if(u.startsWith('PHD')||u.startsWith('PH')||u==='PDOC') return 'PH.D';
-  // M.Tech / MTech / M.tech
   if(u==='MTECH'||u==='MTEACH') return 'M.TECH';
-  // M.E.
   if(u==='ME') return 'M.E.';
-  // M.Sc / M.Sc. / M.Sc(Phy) / m.SC / MSC — must come before MBA/MCA/MS
   if(u.startsWith('MSC')||u==='MSCPHY') return 'M.SC';
-  // M.S / MS (foreign master's)
   if(u==='MS') return 'M.S';
-  // MCA
   if(u==='MCA') return 'MCA';
-  // MBA
   if(u==='MBA') return 'MBA';
-  // M.Phil / M. Phil
   if(u.startsWith('MPHIL')) return 'M.PHIL';
-  // M.A
   if(u==='MA') return 'M.A';
-  // M.Arch
   if(u.startsWith('MARCH')) return 'M.ARCH';
-  // B.Tech / BTech
   if(u==='BTECH') return 'B.TECH';
-  // B.E.
   if(u==='BE') return 'B.E.';
-  // Return original (trimmed) so no data is silently dropped
   return String(raw||'').trim();
 }
 
-function uploadFacultyExcel(input){
+async function uploadFacultyExcel(input){
   const file=input.files[0];
   if(!file) return;
   const statusEl=document.getElementById('fac-xl-status');
-  statusEl.innerHTML=`<div class="alt alt-i">⏳ Reading <b>${file.name}</b>…</div>`;
+  statusEl.innerHTML=`<div class="alt alt-i">⏳ Reading <b>${file.name}</b> and uploading to MongoDB table "${CU.deptId}"…</div>`;
 
   const reader=new FileReader();
-  reader.onload=function(e){
+  reader.onload=async function(e){
     try{
-      // cellDates:true → SheetJS converts serial numbers to JS Date objects
       const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
 
-      // Try to find the sheet that contains faculty data
       let ws=null;
       for(const name of wb.SheetNames){
         const s=wb.Sheets[name];
         const txt=XLSX.utils.sheet_to_csv(s).toLowerCase();
         if(txt.includes('name')&&(txt.includes('qualification')||txt.includes('joining'))){ws=s;break;}
       }
-      if(!ws) ws=wb.Sheets[wb.SheetNames[0]]; // fallback to first sheet
+      if(!ws) ws=wb.Sheets[wb.SheetNames[0]];
 
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false,dateNF:'yyyy-mm-dd'});
-      // Also get raw version to preserve Date objects for date parsing
       const rawRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
 
       if(rows.length<2){
@@ -2177,16 +2743,15 @@ function uploadFacultyExcel(input){
         input.value='';return;
       }
 
-      // ── Find header row (search up to row 10) ──
+      // Find header row (search first 10 rows)
       let hdrIdx=-1;
       for(let i=0;i<Math.min(rows.length,10);i++){
         const joined=rows[i].join('~~').toLowerCase();
-        if((joined.includes('name')||joined.includes('srno'))&&joined.includes('qualification')){
+        if((joined.includes('name')||joined.includes('sl')||joined.includes('srno'))&&joined.includes('qualification')){
           hdrIdx=i; break;
         }
       }
       if(hdrIdx<0){
-        // looser fallback — just find any row with 'name'
         for(let i=0;i<Math.min(rows.length,10);i++){
           if(rows[i].join('').toLowerCase().includes('name')){ hdrIdx=i; break; }
         }
@@ -2194,7 +2759,7 @@ function uploadFacultyExcel(input){
       const dataStart = hdrIdx>=0 ? hdrIdx+1 : 1;
       const hdr = hdrIdx>=0 ? rows[hdrIdx].map(c=>String(c||'').toLowerCase().trim()) : null;
 
-      // ── Auto-detect column positions from header ──
+      // Auto-detect columns via keyword matching
       function ci(keywords){
         if(!hdr) return -1;
         for(let i=0;i<hdr.length;i++){
@@ -2202,84 +2767,110 @@ function uploadFacultyExcel(input){
         }
         return -1;
       }
-      // DSATM format: 0=Srno 1=Name 2=Designation 3=Gender 4=Qual 5=Exp 6=CW 7=Join 8=Leave 9=Assoc
-      const iName  = ci(['name'])              >=0 ? ci(['name'])              : 1;
-      const iDesig = ci(['designation'])       >=0 ? ci(['designation'])       : 2;
-      const iGend  = ci(['gender'])            >=0 ? ci(['gender'])            : 3;
-      const iQual  = ci(['qualification'])     >=0 ? ci(['qualification'])     : 4;
-      const iExp   = ci(['experience'])        >=0 ? ci(['experience'])        : 5;
-      const iCW    = ci(['currently'])         >=0 ? ci(['currently'])         : 6;
-      const iJoin  = ci(['joining'])           >=0 ? ci(['joining'])           : 7;
-      const iLeave = ci(['leaving'])           >=0 ? ci(['leaving'])           : 8;
-      const iAssoc = ci(['association'])       >=0 ? ci(['association'])       : 9;
 
-      const added=[];
-      const skipped=[];   // rows excluded due to non-allowed qualification
+      const iSl    = ci(['sl', 'sr', 'no']);
+      const iName  = ci(['name']) >= 0 ? ci(['name']) : 1;
+      const iAge   = ci(['age']);
+      const iDesig = ci(['designation', 'desig']);
+      const iGend  = ci(['gender', 'sex']);
+      const iQual  = ci(['qualification', 'qual']);
+      const iExp   = ci(['experience', 'exp']);
+      const iCW    = ci(['currently', 'working']);
+      const iJoin  = ci(['joining', 'join']);
+      const iLeave = ci(['leaving', 'leave']);
+      const iAssoc = ci(['association', 'assoc']);
+
+      // Positional fallbacks based on whether Age column is present
+      const fallbackWithAge = iAge >= 0;
+      const colSl    = iSl >= 0 ? iSl : 0;
+      const colName  = iName >= 0 ? iName : 1;
+      const colAge   = iAge >= 0 ? iAge : (fallbackWithAge ? 2 : -1);
+      const colDesig = iDesig >= 0 ? iDesig : (fallbackWithAge ? 3 : 2);
+      const colGend  = iGend >= 0 ? iGend : (fallbackWithAge ? 4 : 3);
+      const colQual  = iQual >= 0 ? iQual : (fallbackWithAge ? 5 : 4);
+      const colExp   = iExp >= 0 ? iExp : (fallbackWithAge ? 6 : 5);
+      const colCW    = iCW >= 0 ? iCW : (fallbackWithAge ? 7 : 6);
+      const colJoin  = iJoin >= 0 ? iJoin : (fallbackWithAge ? 8 : 7);
+      const colLeave = iLeave >= 0 ? iLeave : (fallbackWithAge ? 9 : 8);
+      const colAssoc = iAssoc >= 0 ? iAssoc : (fallbackWithAge ? 10 : 9);
+
+      const facultyToSave=[];
       for(let i=dataStart;i<rows.length;i++){
         const row=rows[i];
         const rawRow=rawRows[i]||[];
 
-        // Skip blank rows
-        const name=String(row[iName]||'').trim();
-        if(!name||name.toLowerCase()==='name'||name.toLowerCase()==='srno') continue;
-        // Skip summary / total rows
-        if(/^(total|subtotal|grand)/i.test(name)) continue;
+        const name=String(row[colName]||'').trim();
+        if(!name||name.toLowerCase()==='name'||name.toLowerCase()==='srno'||/^(total|subtotal|grand)/i.test(name)) continue;
 
-        const designation = String(row[iDesig]||'').trim();
+        const sl_no = colSl >= 0 && row[colSl] ? (parseInt(String(row[colSl]).replace(/[^\d]/g,'')) || (i - dataStart + 1)) : (i - dataStart + 1);
+        const age = colAge >= 0 && row[colAge] ? (parseInt(String(row[colAge]).replace(/[^\d]/g,'')) || null) : null;
+        const designation = colDesig >= 0 ? String(row[colDesig]||'').trim() : '';
 
-        // Gender: Male→F, Female→F, Other/Transgender→O
-        const gRaw=String(row[iGend]||'').trim().toLowerCase();
-        const gender = gRaw.startsWith('f')?'F' : gRaw.startsWith('m')?'M' : (gRaw.startsWith('o')||gRaw.startsWith('t'))?'O' : '';
+        const gRaw = colGend >= 0 ? String(row[colGend]||'').trim().toLowerCase() : '';
+        const gender = gRaw.startsWith('f')?'F' : gRaw.startsWith('m')?'M' : (gRaw.startsWith('o')||gRaw.startsWith('t'))?'O' : (colGend >= 0 ? String(row[colGend]||'').trim().toUpperCase() : '');
 
-        const qual = normaliseQual(row[iQual]);
+        const qual = colQual >= 0 ? normaliseQual(row[colQual]) : 'M.TECH';
+        const exp = colExp >= 0 ? (parseInt(String(row[colExp]||'0').replace(/[^\d]/g,''))||0) : 0;
 
-        // ── QUALIFICATION FILTER ──
-        // Only PH.D, M.TECH and M.E. are counted for NIRF faculty calculation
-        const ALLOWED_QUALS=['PH.D','M.TECH','M.E.'];
-        if(!ALLOWED_QUALS.includes(qual)){
-          skipped.push({name, qual: qual||'(blank)'});
-          continue;
-        }
+        const cwRaw = colCW >= 0 ? String(row[colCW]||'yes').trim().toLowerCase() : 'yes';
+        const isLeft = (cwRaw==='no'||cwRaw==='n');
+        const currently_working = isLeft ? 'No' : 'Yes';
 
-        // Experience: may be number or string
-        const exp = parseInt(String(row[iExp]||'0').replace(/[^\d]/g,''))||0;
+        const joining = colJoin >= 0 ? (parseExcelDate(rawRow[colJoin])||parseExcelDate(row[colJoin])) : '';
+        const leaving = colLeave >= 0 ? (parseExcelDate(rawRow[colLeave])||parseExcelDate(row[colLeave])) : '';
 
-        // Currently working: Yes → active, No → left
-        const cwRaw=String(row[iCW]||'yes').trim().toLowerCase();
-        const status = (cwRaw==='no'||cwRaw==='n') ? 'left' : 'active';
+        const association = colAssoc >= 0 ? String(row[colAssoc]||'Regular').trim() : 'Regular';
+        const status = (isLeft || leaving) ? 'left' : 'active';
 
-        // Dates — use rawRow for Date objects, formatted row as fallback
-        const joining = parseExcelDate(rawRow[iJoin])||parseExcelDate(row[iJoin]);
-        const leaving = parseExcelDate(rawRow[iLeave])||parseExcelDate(row[iLeave]);
-
-        const association = String(row[iAssoc]||'Regular').trim();
-
-        const f={
-          id:'F'+Date.now()+'_'+i,
-          name, designation, qualification:qual, experience:exp,
-          gender, joining:joining||null, leaving:leaving||null,
-          status, association
-        };
-        S.faculty[CU.deptId].push(f);
-        added.push(name);
+        facultyToSave.push({
+          sl_no,
+          name,
+          age,
+          designation,
+          gender,
+          qualification: qual,
+          experience: exp,
+          currently_working,
+          joining_date: joining || null,
+          leaving_date: leaving || null,
+          association_type: association,
+          status,
+          department: CU.deptId
+        });
       }
 
+      if(!facultyToSave.length){
+        statusEl.innerHTML=`<div class="alt alt-w">⚠️ No valid faculty rows found. Make sure the file has columns: Name, Qualification, Joining Date, etc.</div>`;
+        input.value='';
+        return;
+      }
+
+      // Store records into respective logged in department table in MongoDB "faculty_data"
+      const apiBase=(window.location.protocol.startsWith('http')&&window.location.port==='5000')?'':'http://localhost:5000';
+      const postRes = await fetch(`${apiBase}/api/faculty/${CU.deptId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ faculty: facultyToSave, replaceAll: true })
+      });
+      const postData = await postRes.json();
+      if(!postRes.ok || !postData.success){
+        throw new Error(postData.message || 'Database save failed');
+      }
+
+      // Retrieve all saved values back from the database table for this department
+      await fetchDepartmentFacultyFromDB(CU.deptId);
       save();
-      const skipNote = skipped.length
-        ? ` <b>${skipped.length} row(s) skipped</b> — qualification not in allowed list (PH.D / M.TECH / M.E.): ${[...new Set(skipped.map(s=>s.qual))].join(', ')}.`
-        : '';
-      if(added.length){
-        audit(CU.name,CU.deptId,'Faculty',`Excel upload: ${added.length} faculty added, ${skipped.length} skipped (non-allowed qualification)`);
-        statusEl.innerHTML=`<div class="alt alt-s">✅ <b>${added.length} faculty imported</b> from <i>${file.name}</i>. NIRF cutoffs applied — check Included/Excluded tabs.${skipNote}</div>`;
-        setTimeout(()=>renderFaculty(),600);
-      } else {
-        const noAddMsg = skipped.length
-          ? `<div class="alt alt-w">⚠ No faculty imported. ${skipped.length} row(s) were skipped because their qualification is not in the allowed list (PH.D / M.TECH / M.E.). Qualifications found: ${[...new Set(skipped.map(s=>s.qual))].join(', ')}.</div>`
-          : `<div class="alt alt-w">⚠ No valid rows found. Make sure the file has a header row containing <b>Name, Qualification, Joining Date</b> columns.</div>`;
-        statusEl.innerHTML=noAddMsg;
+      audit(CU.name, CU.deptId, 'Faculty', `Excel upload: ${facultyToSave.length} faculty stored in MongoDB table "${CU.deptId}"`);
+
+      // Re-render faculty data and immediately switch to the Included section
+      renderFaculty('fac-inc', true);
+
+      const statusAfter=document.getElementById('fac-xl-status');
+      if(statusAfter){
+        statusAfter.innerHTML=`<div class="alt alt-s">✅ <b>${facultyToSave.length} faculty records stored</b> into MongoDB database <b>faculty_data</b> (table: <b>${CU.deptId}</b>) and loaded into the Included section!</div>`;
       }
     } catch(err){
-      statusEl.innerHTML=`<div class="alt alt-e">❌ Error reading file: <b>${err.message}</b>. Make sure it is a valid .xlsx file.</div>`;
+      statusEl.innerHTML=`<div class="alt alt-e">❌ Error uploading faculty data: <b>${err.message}</b>.</div>`;
       console.error(err);
     }
     input.value='';
@@ -2289,29 +2880,38 @@ function uploadFacultyExcel(input){
 
 function downloadFacultySample(){
   const wb=XLSX.utils.book_new();
-  const headers=['Srno','Name','Designation','Gender','Qualification','Experience (In Months)','Currently working with','Joining Date','Leaving Date','Association type'];
+  const headers=[
+    'Sl. No.',
+    'Name of the Faculty',
+    'Age',
+    'Designation',
+    'Gender',
+    'Qualification',
+    'Experience (in Months)',
+    'Currently working with institution?',
+    'Joining Date',
+    'Leaving Date',
+    'Association Type (Regular(R) / Contractual(C) / Visitor(V) / Other(O))'
+  ];
   const data=[
     headers,
-    [1,'DR JAGADEESH N M','Assistant Professor','Male','Ph.D',100,'Yes','01-04-2024','--','Regular'],
-    [2,'KAVYASHREE L','Assistant Professor','Female','M.Tech',50,'Yes','28-06-2024','--','Regular'],
-    [3,'MAHESH BASAVARAJ','Assistant Professor','Male','M.Tech',196,'Yes','30-07-2024','--','Regular'],
-    [4,'Dr Vatsala GA','Associate Professor','Female','Ph.D',337,'Yes','30-07-2014','--','Regular'],
-    [5,'SANTHOSH D N','Assistant Professor','Male','M.Tech',168,'Yes','25-07-2012','--','Regular'],
-    [6,'Dr. Meera Iyer','Professor','Female','Ph.D',288,'Yes','10-01-2015','--','Regular'],
-    [7,'SURESH NAIDU','Assistant Professor','Male','M.E.',72,'Yes','01-08-2022','--','Regular'],
-    [8,'Dr. Priya Reddy','Associate Professor','Female','Ph.D',132,'No','20-03-2019','31-07-2024','Regular'],
-    [9,'ARUN JOSHI','Assistant Professor','Male','MBA',48,'Yes','01-06-2023','--','Adjunct'],
-    [10,'Ms. Kavitha Bhat','Assistant Professor','Female','M.Sc',36,'Yes','15-01-2024','--','Regular'],
+    [1,'Dr. Ramesh Kumar',45,'Professor','Male','Ph.D',192,'Yes','2018-06-15','--','Regular'],
+    [2,'Ms. Priya Sharma',34,'Assistant Professor','Female','M.Tech',84,'Yes','2021-08-01','--','Regular'],
+    [3,'Dr. Anil Deshmukh',52,'Professor','Male','Ph.D',260,'Yes','2012-07-20','--','Regular'],
+    [4,'Mr. John Peter',29,'Assistant Professor','Male','M.Tech',36,'Yes','2023-01-10','--','Regular'],
+    [5,'Dr. Sunita Rao',41,'Associate Professor','Female','Ph.D',144,'Yes','2019-09-05','--','Regular'],
+    [6,'Mr. Rajesh Verma',32,'Assistant Professor','Male','M.Tech',48,'Yes','2022-07-15','--','Regular'],
+    [7,'Dr. Kavitha C',49,'Professor','Female','Ph.D',240,'Yes','2015-01-08','--','Regular'],
+    [8,'Mr. Suresh Babu',38,'Assistant Professor','Male','M.E.',110,'Yes','2020-03-12','--','Regular']
   ];
   const ws=XLSX.utils.aoa_to_sheet(data);
-  // Style header row yellow (matching your format)
   const hdrRange=XLSX.utils.decode_range(ws['!ref']);
   for(let c=hdrRange.s.c;c<=hdrRange.e.c;c++){
     const cellRef=XLSX.utils.encode_cell({r:0,c});
     if(!ws[cellRef]) continue;
     ws[cellRef].s={fill:{fgColor:{rgb:'FFFF00'}},font:{bold:true}};
   }
-  ws['!cols']=[{wch:6},{wch:24},{wch:22},{wch:10},{wch:16},{wch:22},{wch:22},{wch:14},{wch:14},{wch:16}];
+  ws['!cols']=[{wch:8},{wch:26},{wch:8},{wch:22},{wch:10},{wch:16},{wch:24},{wch:34},{wch:14},{wch:14},{wch:32}];
   XLSX.utils.book_append_sheet(wb,ws,'Faculty');
   XLSX.writeFile(wb,'Faculty_Upload_Sample.xlsx');
 }
@@ -3223,11 +3823,16 @@ function clearSSData(){
   renderStudentStrength();
 }
 
-function clearAllFaculty(){
+async function clearAllFaculty(){
   if(!confirm('Delete ALL faculty records for this department? This cannot be undone.')) return;
   const id=CU.deptId;
   S.faculty[id]=[];
-  save();audit(CU.name,id,'Faculty','All faculty records cleared');
+  save();
+  try{
+    const apiBase=(window.location.protocol.startsWith('http')&&window.location.port==='5000')?'':'http://localhost:5000';
+    await fetch(`${apiBase}/api/faculty/${id}`,{method:'DELETE'});
+  }catch(e){}
+  audit(CU.name,id,'Faculty','All faculty records cleared');
   renderFaculty();
 }
 
