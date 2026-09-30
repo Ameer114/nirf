@@ -65,6 +65,10 @@
 
 *{box-sizing:border-box;margin:0;padding:0}
 
+html,body{
+  max-width:100%;
+  overflow-x:hidden;
+}
 body{
   font-family:'Plus Jakarta Sans',system-ui,sans-serif;
   background:var(--page-bg);
@@ -161,7 +165,7 @@ body{
 
 /* ── LAYOUT ── */
 #app{display:none}
-.layout{display:flex;min-height:100vh}
+.layout{display:flex;min-height:100vh;max-width:100vw;overflow-x:hidden}
 
 .sidebar{
   width:var(--sw);
@@ -226,7 +230,16 @@ body{
 }
 .nvi .ic{width:16px;text-align:center;font-size:14px;flex-shrink:0}
 
-.main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column}
+.main{
+  margin-left:var(--sw);
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  max-width:calc(100vw - var(--sw));
+  box-sizing:border-box;
+  overflow-x:hidden;
+}
 
 .topbar{
   height:var(--hh);
@@ -237,12 +250,22 @@ body{
   padding:0 24px;gap:14px;
   position:sticky;top:0;z-index:50;
   box-shadow:var(--sh);
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
 }
 .tb-title{
   font-size:15px;font-weight:800;
   color:var(--navy);flex:1;
 }
-.content{flex:1;padding:24px}
+.content{
+  flex:1;
+  padding:24px;
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
+  overflow-x:hidden;
+}
 
 /* ── CARDS ── */
 .card{
@@ -251,6 +274,8 @@ body{
   border:1px solid var(--g200);
   box-shadow:var(--sh);
   overflow:hidden;
+  max-width:100%;
+  box-sizing:border-box;
 }
 .ch{
   padding:14px 18px;
@@ -293,13 +318,63 @@ body{
 .msub{font-size:11px;color:var(--g600)}
 
 /* ── GRIDS ── */
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px;min-width:0;max-width:100%}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
 .g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
 .cc{position:relative;height:260px}
 
 /* ── TABLES ── */
-.tw{overflow-x:auto}
+.tw{
+  overflow-x:auto;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
+  -webkit-overflow-scrolling:touch;
+}
+.tw::-webkit-scrollbar{height:7px}
+.tw::-webkit-scrollbar-track{background:var(--g100);border-radius:4px}
+.tw::-webkit-scrollbar-thumb{background:var(--g300);border-radius:4px}
+.tw::-webkit-scrollbar-thumb:hover{background:var(--g400)}
+
+/* ── DROPDOWN FILTERS ── */
+.pub-dropdown{position:relative;display:inline-block}
+.pub-dropdown-menu{
+  display:none;
+  position:absolute;
+  top:100%;left:0;
+  margin-top:5px;
+  background:#fff;
+  border:1.5px solid var(--g200);
+  border-radius:10px;
+  box-shadow:0 10px 25px rgba(15,23,41,.14);
+  min-width:190px;
+  max-width:320px;
+  z-index:9999;
+  padding:6px 0;
+  max-height:280px;
+  overflow-y:auto;
+}
+.pub-drop-item{
+  padding:8px 14px;
+  cursor:pointer;
+  font-size:12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  color:var(--g700);
+  transition:background .15s, color .15s;
+}
+.pub-drop-item:hover{
+  background:var(--sky);
+  color:var(--blue);
+  font-weight:600;
+}
+.pub-drop-item.active{
+  background:linear-gradient(90deg,#eff6ff,#f5f3ff);
+  font-weight:700;
+  color:var(--blue);
+}
 table{width:100%;border-collapse:collapse}
 thead th{
   background:linear-gradient(180deg,var(--g50) 0%,var(--g100) 100%);
@@ -705,6 +780,7 @@ const NIRF_CYCLES={
     LEAVE_CUTOFF:'2026-04-30',
     CUTOFF_DISP:{join:'31-Aug-2025',leave:'30-Apr-2026'},
     UG_ROWS:[
+      {intakeYr:'2019-20',lateralYr:'2020-21',gradYr:'2022-23'},
       {intakeYr:'2020-21',lateralYr:'2021-22',gradYr:'2023-24'},
       {intakeYr:'2021-22',lateralYr:'2022-23',gradYr:'2024-25'},
       {intakeYr:'2022-23',lateralYr:'2023-24',gradYr:'2025-26'}
@@ -719,6 +795,7 @@ const NIRF_CYCLES={
     LEAVE_CUTOFF:'2025-04-30',
     CUTOFF_DISP:{join:'31-Aug-2024',leave:'30-Apr-2025'},
     UG_ROWS:[
+      {intakeYr:'2018-19',lateralYr:'2019-20',gradYr:'2021-22'},
       {intakeYr:'2019-20',lateralYr:'2020-21',gradYr:'2022-23'},
       {intakeYr:'2020-21',lateralYr:'2021-22',gradYr:'2023-24'},
       {intakeYr:'2021-22',lateralYr:'2022-23',gradYr:'2024-25'}
@@ -768,9 +845,10 @@ const PARAM_WEIGHT={TLR:0.30,RPC:0.30,GO:0.20,OI:0.15,Perception:0.05};
 let S={};
 let CU=null; // current user
 
-const DATA_VERSION='rpc-manual-frq-v4';
+const DATA_VERSION='go-data-mongo-v1';
 function loadStore(){
   try{S=JSON.parse(localStorage.getItem('nirf27')||'{}')}catch(e){S={}}
+  if(!S.publications) S.publications={};
   if(S._facultyLoaded) delete S._facultyLoaded;
   if(!S.seeded || S.dataVersion!==DATA_VERSION){
     S.seeded=true; S.dataVersion=DATA_VERSION; S.nirfCycle='2027'; S.dept={}; S.faculty={}; S.exp={}; S.go={}; S.oi={}; S.rpc={}; S.perception={}; S.faculty_mode={}; S.faculty_direct={}; S.pub2026={}; S.audit=[]; S.docs=[];
@@ -889,9 +967,9 @@ function genOI(deptId){
   const inst_sch=Math.floor(ts*0.12);
   const priv_sch=Math.floor(ts*0.08);
   return{
-    ug4:{ts,male,female,os,oc,ews,sc_st_obc,govt_sch,inst_sch,priv_sch},
+    ug4:{program:'UG (4-Year Program)',ts,male,female,os,oc,ews,sc_st_obc,govt_sch,inst_sch,priv_sch},
     ug5:{ts:0,male:0,female:0,os:0,oc:0,ews:0,sc_st_obc:0,govt_sch:0,inst_sch:0,priv_sch:0},
-    pg:{ts:Math.floor(ts*0.12),male:Math.floor(ts*0.07),female:Math.floor(ts*0.05),os:Math.floor(ts*0.02),oc:0,ews:Math.floor(ts*0.01),sc_st_obc:Math.floor(ts*0.04),govt_sch:Math.floor(ts*0.02),inst_sch:Math.floor(ts*0.01),priv_sch:Math.floor(ts*0.005)},
+    pg:{ts:0,male:0,female:0,os:0,oc:0,ews:0,sc_st_obc:0,govt_sch:0,inst_sch:0,priv_sch:0},
     pcs_score:20.0, // PCS: Programs with Curriculum & Syllabi Structured — default 20 (max 20)
   };
 }
@@ -1073,7 +1151,18 @@ function calcTLR(deptId){
 function calcGO(deptId){
   const gd=S.go[deptId];
   if(!gd) return{GPH:0,GUE:0,GMS:0,GPHD:0,GO:0};
-  const combined=[...gd.ug,...gd.pg];
+  const targetUgYrs = (S.nirfCycle === '2026') 
+    ? ['2021-22', '2022-23', '2023-24', '2024-25'] 
+    : ['2022-23', '2023-24', '2024-25', '2025-26'];
+  const targetPgYrs = (S.nirfCycle === '2026')
+    ? ['2020-21', '2021-22', '2022-23', '2023-24']
+    : ['2021-22', '2022-23', '2023-24', '2024-25'];
+
+  const matchedUg = (gd.ug||[]).filter(r => targetUgYrs.includes(r.year || r.gradYr));
+  const matchedPg = (gd.pg||[]).filter(r => targetPgYrs.includes(r.year));
+  const ugList = matchedUg.length > 0 ? matchedUg : (gd.ug || []);
+  const pgList = matchedPg.length > 0 ? matchedPg : (gd.pg || []);
+  const combined = [...ugList, ...pgList];
   if(combined.length===0) return{GPH:0,GUE:0,GMS:0,GPHD:0,GO:0};
   let total_intake=0,total_graduated=0,total_placed=0,total_higher=0;
   const salaries=[];
@@ -1103,22 +1192,19 @@ function calcGO(deptId){
 }
 
 // ══════════════════════════════════════════════════
-// OI CALCULATION — from provided formula exactly
+// OI CALCULATION — from provided formula exactly (UG 4-Year Program)
 // ══════════════════════════════════════════════════
 function calcOI(deptId){
   const oi=S.oi[deptId];
   const fac=calcFaculty(deptId);
-  if(!oi) return{RD:0,WD:0,ESCS:0,PCS:0,OI_100:0,OI_10:0};
-  // Aggregate all program rows
-  const rows=[oi.ug4,oi.ug5,oi.pg].filter(r=>r&&r.ts>0);
-  let TS=0,OS=0,OC=0,NWS=0,FTRS=0;
-  rows.forEach(r=>{
-    TS+=r.ts||0; OS+=r.os||0; OC+=r.oc||0; NWS+=r.female||0;
-    FTRS+=(r.govt_sch||0)+(r.inst_sch||0)+(r.priv_sch||0);
-  });
+  if(!oi) return{RD:0,WD:0,ESCS:0,PCS:0,OI_100:0,OI_10:0,TS:0,OS:0,OC:0,NWS:0,NWS_pct:0,NWF_pct:0,FTRS:0,WF:0,TF:0};
+  // Aggregate exclusively UG (4-Year Program) row, neglecting all other rows
+  const r=oi.ug4||{};
+  const TS=Number(r.ts||0), OS=Number(r.os||0), OC=Number(r.oc||0), NWS=Number(r.female||0);
+  const FTRS=(Number(r.govt_sch)||0)+(Number(r.inst_sch)||0)+(Number(r.priv_sch)||0);
   const TF=fac.F_available;
   const WF=fac.F_female;
-  const PCS=oi.pcs_score||20; // max 20
+  const PCS=Number(oi.pcs_score!==undefined ? oi.pcs_score : 20); // max 20
   const RD_raw=(TS>0)?(25*(OS/TS)+5*(OC/TS)):0;
   const RD=Math.min(RD_raw,30);
   const NWS_pct=(TS>0)?(NWS/TS)*100:0;
@@ -1268,6 +1354,10 @@ function initApp(){
   if(CU.deptId){
     fetchDepartmentFacultyFromDB(CU.deptId);
     fetchDepartmentSSFromDB(CU.deptId);
+    fetchDepartmentGOFromDB(CU.deptId);
+    fetchDepartmentOIFromDB(CU.deptId);
+    fetchDepartmentPublicationsFromDB(CU.deptId);
+    fetchDepartmentPatentsFromDB(CU.deptId);
   }
   nav('dashboard');
 }
@@ -1309,6 +1399,7 @@ function renderSidebar(){
       <div class="nvsec">Other Parameters</div>
       <div class="nvi" data-p="rpc-dept" onclick="nav('rpc-dept')"><span class="ic">🔬</span> RPC Data</div>
       <div class="nvi" data-p="pub2026-dept" onclick="nav('pub2026-dept')"><span class="ic">📑</span> Publication-2026</div>
+      <div class="nvi" data-p="ipr-dept" onclick="nav('ipr-dept')"><span class="ic">💡</span> IPR &amp; Patents</div>
       <div class="nvi" data-p="go-dept" onclick="nav('go-dept')"><span class="ic">🎓</span> GO Data</div>
       <div class="nvi" data-p="oi-dept" onclick="nav('oi-dept')"><span class="ic">🌐</span> OI Data</div>
       <div class="nvi" data-p="perception-dept" onclick="nav('perception-dept')"><span class="ic">📊</span> Perception</div>
@@ -1344,6 +1435,7 @@ const PAGES={
   'tlr-dept':renderTLRDept,
   'rpc-dept':renderRPCDept,
   'pub2026-dept':renderPub2026DeptPage,
+  'ipr-dept':renderIPRDeptPage,
   'go-dept':renderGODept,
   'oi-dept':renderOIDept,
   'perception-dept':renderPerceptionDept,
@@ -3080,155 +3172,1667 @@ function getPub2026Faculty(deptId){
   return getPub2026FacultyCount(deptId);
 }
 
-function renderPub2026Block(deptId){
-  const p=S.pub2026=S.pub2026||{};
-  p[deptId]=p[deptId]||{q1:0,q2:0,q3:0,q4:0,conf:0};
-  const d=p[deptId];
-  const total=(d.q1||0)+(d.q2||0)+(d.q3||0)+(d.q4||0)+(d.conf||0);
-  const facCount=getPub2026Faculty(deptId);
-  const target=facCount*3;
-  const gap=target-total;
-  const gapColor=gap<=0?'var(--green)':'var(--red)';
-  const gapLabel=gap<=0?'Surplus \u2212'+Math.abs(gap):'Needed +'+gap;
-  const cats=[
-    {k:'q1',  label:'Q1 — Top Quartile (Scopus/Web of Science)', color:'#7c3aed', bg:'#f5f3ff'},
-    {k:'q2',  label:'Q2 — High Impact Journals',                 color:'#2563eb', bg:'#eff6ff'},
-    {k:'q3',  label:'Q3 — Good Journals',                       color:'#0891b2', bg:'#ecfeff'},
-    {k:'q4',  label:'Q4 — Indexed Journals',                     color:'#059669', bg:'#ecfdf5'},
-    {k:'conf',label:'Conference Papers / Book Chapters / Others', color:'#d97706', bg:'#fffbeb'},
+// ══════════════════════════════════════════════════
+// PUBLICATION-2026 MODULE (MongoDB "publication_data" integration)
+// ══════════════════════════════════════════════════
+
+async function fetchDepartmentPublicationsFromDB(deptId){
+  if(!deptId) return null;
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/publications/${deptId}?_t=${Date.now()}`, { cache: 'no-cache' });
+    if(!res.ok) return null;
+    const json = await res.json();
+    if(json.success && Array.isArray(json.data)){
+      if(!S.publications) S.publications = {};
+      S.publications[deptId] = json.data;
+      save();
+      return S.publications[deptId];
+    }
+  } catch(e){
+    // Network / backend offline fallback
+  }
+  return null;
+}
+
+function downloadPub2026Sample(){
+  const sampleData = [
+    {
+      'Sl.No.': 1,
+      'Name of the Faculty': 'Dr. Chitra K',
+      'Paper Title': 'Blockchain-Based Secure Data Sharing Framework for Healthcare Applications',
+      'List of Authors': 'Chitra K, Ravi Kumar S, Anitha R',
+      'Claim by Faculty (Name)': 'Dr. Chitra K',
+      'Indexing (Scopus/WoS)': 'Scopus',
+      'Quartile (Q1/Q2/Q3/Q4)': 'Q2',
+      'Publication Month (MonYYYY)': 'Jan 2026',
+      'Journal Name/Conference Name': 'International Journal of Information Technology',
+      'DOI as link': 'https://doi.org/10.1007/s41870-025-00001-1'
+    },
+    {
+      'Sl.No.': 2,
+      'Name of the Faculty': 'Dr. Anitha R',
+      'Paper Title': 'Machine Learning Approach for Predictive Analytics in Healthcare',
+      'List of Authors': 'Anitha R, Chitra K, Suresh M',
+      'Claim by Faculty (Name)': 'Dr. Anitha R',
+      'Indexing (Scopus/WoS)': 'Scopus/WoS',
+      'Quartile (Q1/Q2/Q3/Q4)': 'Q1',
+      'Publication Month (MonYYYY)': 'Jan 2026',
+      'Journal Name/Conference Name': 'Journal of Intelligent & Fuzzy Systems',
+      'DOI as link': 'https://doi.org/10.3233/JIFS-250001'
+    },
+    {
+      'Sl.No.': 3,
+      'Name of the Faculty': 'Dr. Ravi Kumar',
+      'Paper Title': 'Deep Learning-Based Image Classification for Medical Diagnosis',
+      'List of Authors': 'Ravi Kumar, Priya S, Chitra K',
+      'Claim by Faculty (Name)': 'Dr. Ravi Kumar',
+      'Indexing (Scopus/WoS)': 'Scopus',
+      'Quartile (Q1/Q2/Q3/Q4)': 'Q2',
+      'Publication Month (MonYYYY)': 'Feb 2026',
+      'Journal Name/Conference Name': 'International Journal of Advanced Computer Science and Applications',
+      'DOI as link': 'https://doi.org/10.14569/IJACSA.2024.0150001'
+    }
   ];
+
+  const ws = XLSX.utils.json_to_sheet(sampleData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Publications_2026');
+  XLSX.writeFile(wb, 'Publications_2026_Sample.xlsx');
+}
+
+function exportPub2026ToExcel(deptId){
+  const list = (S.publications && S.publications[deptId]) || [];
+  if(list.length === 0){
+    alert('No publications to export for department ' + deptId);
+    return;
+  }
+  const formatted = list.map(p => ({
+    'Sl.No.': p.sl_no,
+    'Name of the Faculty': p.faculty_name,
+    'Paper Title': p.title,
+    'List of Authors': p.authors,
+    'Claim by Faculty (Name)': p.claimed_by,
+    'Indexing (Scopus/WoS)': p.indexing,
+    'Quartile (Q1/Q2/Q3/Q4)': p.quartile,
+    'Publication Month (MonYYYY)': p.pub_month,
+    'Journal Name/Conference Name': p.journal_name,
+    'DOI as link': p.doi
+  }));
+  const ws = XLSX.utils.json_to_sheet(formatted);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `Publications_${deptId}`);
+  XLSX.writeFile(wb, `Publications_2026_${deptId}.xlsx`);
+}
+
+async function uploadPublicationExcel(input, deptId){
+  const file = input.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('pub-xl-status');
+  if(statusEl) statusEl.innerHTML = `<div class="alt alt-i">⏳ Processing <b>${file.name}</b> through ETL pipeline...</div>`;
+
+  const reader = new FileReader();
+  reader.onload = async function(e){
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      if(!rawRows || rawRows.length === 0){
+        if(statusEl) statusEl.innerHTML = `<div class="alt alt-e">❌ Excel file is empty or could not be parsed.</div>`;
+        input.value = '';
+        return;
+      }
+
+      // Map rows cleanly to schema
+      const rows = rawRows.map((r, idx) => ({
+        sl_no: Number(r['Sl.No.'] || r['Sl. No.'] || r['Sl No'] || r['SL.NO.'] || r['sl_no']) || (idx + 1),
+        faculty_name: String(r['Name of the Faculty'] || r['Faculty Name'] || r['faculty_name'] || r['Name'] || '').trim(),
+        title: String(r['Paper Title'] || r['Title'] || r['title'] || '').trim(),
+        authors: String(r['List of Authors'] || r['Authors'] || r['authors'] || '').trim(),
+        claimed_by: String(r['Claim by Faculty (Name)'] || r['Claimed By'] || r['Claim by Faculty'] || r['claimed_by'] || '').trim(),
+        indexing: String(r['Indexing (Scopus/WoS)'] || r['Indexing'] || r['indexing'] || 'Scopus').trim(),
+        quartile: String(r['Quartile (Q1/Q2/Q3/Q4)'] || r['Quartile'] || r['quartile'] || 'Q2').trim().toUpperCase(),
+        pub_month: String(r['Publication Month (MonYYYY)'] || r['Publication Month'] || r['Month'] || r['pub_month'] || '').trim(),
+        journal_name: String(r['Journal Name/Conference Name'] || r['Journal Name'] || r['Conference Name'] || r['journal_name'] || '').trim(),
+        doi: String(r['DOI as link'] || r['DOI'] || r['doi'] || '').trim()
+      })).filter(r => r.faculty_name || r.title);
+
+      const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+      const res = await fetch(`${apiBase}/api/publications/${deptId}/etl-pipeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows, mode: 'replace' })
+      });
+      const resJson = await res.json();
+      if(res.ok && resJson.success){
+        if(!S.publications) S.publications = {};
+        S.publications[deptId] = resJson.data;
+        save();
+        audit(CU.name, deptId, 'Publication-2026', `ETL Pipeline uploaded ${resJson.importedCount} publications from Excel: ${file.name}`);
+        if(statusEl) statusEl.innerHTML = `<div class="alt alt-s">✅ Successfully imported <b>${resJson.importedCount}</b> publications to MongoDB database "publication_data" (table: ${deptId})!</div>`;
+        setTimeout(() => {
+          if(CURRENT_PAGE === 'pub2026-dept') renderPub2026DeptPage();
+          else if(CURRENT_PAGE === 'rpc-dept') {
+            const container = document.getElementById('rpc-pub2026');
+            if(container) container.innerHTML = renderPub2026Block(deptId);
+          }
+        }, 1200);
+      } else {
+        if(statusEl) statusEl.innerHTML = `<div class="alt alt-e">❌ ETL upload failed: ${resJson.message || 'Unknown error'}</div>`;
+      }
+    } catch(err){
+      console.error('Publication Excel upload error:', err);
+      if(statusEl) statusEl.innerHTML = `<div class="alt alt-e">❌ Error parsing Excel: ${err.message}</div>`;
+    }
+    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function addManualPublication(deptId){
+  const facName = document.getElementById('p-fac-name')?.value?.trim();
+  const title = document.getElementById('p-title')?.value?.trim();
+  const authors = document.getElementById('p-authors')?.value?.trim() || '';
+  const claimed = document.getElementById('p-claimed')?.value?.trim() || facName;
+  const idx = document.getElementById('p-idx')?.value || 'Scopus';
+  const q = document.getElementById('p-quartile')?.value || 'Q2';
+  const month = document.getElementById('p-month')?.value?.trim() || '';
+  const journal = document.getElementById('p-journal')?.value?.trim() || '';
+  const doi = document.getElementById('p-doi')?.value?.trim() || '';
+
+  const statusEl = document.getElementById('pub-manual-status');
+
+  if(!facName || !title){
+    if(statusEl) statusEl.innerHTML = `<span style="color:var(--red);font-size:12px;font-weight:700">⚠️ Please enter Faculty Name and Paper Title</span>`;
+    return;
+  }
+
+  if(!S.publications) S.publications = {};
+  if(!S.publications[deptId]) S.publications[deptId] = [];
+
+  const newSl = S.publications[deptId].length + 1;
+  const newPub = {
+    sl_no: newSl,
+    faculty_name: facName,
+    title: title,
+    authors: authors,
+    claimed_by: claimed,
+    indexing: idx,
+    quartile: q,
+    pub_month: month,
+    journal_name: journal,
+    doi: doi
+  };
+
+  S.publications[deptId].push(newPub);
+  save();
+  audit(CU.name, deptId, 'Publication-2026', `Added publication: "${title}" by ${facName}`);
+
+  // Save to MongoDB
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+    await fetch(`${apiBase}/api/publications/${deptId}/row`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newPub)
+    });
+  } catch(e){}
+
+  if(statusEl){
+    statusEl.innerHTML = `<span style="color:var(--green);font-size:12px;font-weight:700">✅ Added to table & saved to DB!</span>`;
+    setTimeout(() => { if(statusEl) statusEl.innerHTML = ''; }, 3000);
+  }
+
+  // Clear inputs
+  ['p-fac-name', 'p-title', 'p-authors', 'p-claimed', 'p-month', 'p-journal', 'p-doi'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+
+  // Re-render
+  if(CURRENT_PAGE === 'pub2026-dept') renderPub2026DeptPage();
+  else if(CURRENT_PAGE === 'rpc-dept') {
+    const container = document.getElementById('rpc-pub2026');
+    if(container) container.innerHTML = renderPub2026Block(deptId);
+  }
+}
+
+async function saveAllPublications(deptId){
+  if(!S.publications) S.publications = {};
+  const currentList = S.publications[deptId] || [];
+
+  // Sync any rendered fields in DOM (by sl_no)
+  currentList.forEach(p => {
+    const sl = p.sl_no;
+    const facEl = document.getElementById(`pub-row-fac-${sl}`);
+    if(facEl) p.faculty_name = facEl.value.trim();
+    const titleEl = document.getElementById(`pub-row-title-${sl}`);
+    if(titleEl) p.title = titleEl.value.trim();
+    const authEl = document.getElementById(`pub-row-authors-${sl}`);
+    if(authEl) p.authors = authEl.value.trim();
+    const claimEl = document.getElementById(`pub-row-claim-${sl}`);
+    if(claimEl) p.claimed_by = claimEl.value.trim();
+    const idxEl = document.getElementById(`pub-row-idx-${sl}`);
+    if(idxEl) p.indexing = idxEl.value;
+    const qEl = document.getElementById(`pub-row-q-${sl}`);
+    if(qEl) p.quartile = qEl.value;
+    const monthEl = document.getElementById(`pub-row-month-${sl}`);
+    if(monthEl) p.pub_month = monthEl.value.trim();
+    const jourEl = document.getElementById(`pub-row-journal-${sl}`);
+    if(jourEl) p.journal_name = jourEl.value.trim();
+    const doiEl = document.getElementById(`pub-row-doi-${sl}`);
+    if(doiEl) p.doi = doiEl.value.trim();
+  });
+
+  save();
+  audit(CU.name, deptId, 'Publication-2026', `Saved ${currentList.length} publications`);
+
+  const statusEl = document.getElementById('pub-table-save-status');
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/publications/${deptId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publications: currentList })
+    });
+    const resJson = await res.json();
+    if(res.ok && resJson.success){
+      if(statusEl){
+        statusEl.innerHTML = `<span style="color:var(--green);font-size:12px;font-weight:700">✅ Saved ${currentList.length} records to MongoDB database "publication_data" (table: ${deptId})!</span>`;
+        setTimeout(() => { if(statusEl) statusEl.innerHTML = ''; }, 3500);
+      }
+      // Re-populate filter dropdown options in case months/faculties changed
+      updateFilterDropdownOptions(deptId);
+    }
+  } catch(e){
+    console.warn('Save publications DB warning:', e);
+  }
+}
+
+function updatePubMemoryField(deptId, slNo, field, val){
+  if(!S.publications || !S.publications[deptId]) return;
+  const item = S.publications[deptId].find(p => p.sl_no === slNo);
+  if(item){
+    item[field] = val;
+    save();
+  }
+}
+
+async function deletePubRow(deptId, slNo){
+  if(!confirm(`Delete publication record #${slNo}?`)) return;
+  if(!S.publications || !S.publications[deptId]) return;
+
+  S.publications[deptId] = S.publications[deptId].filter(p => p.sl_no !== slNo);
+  // Re-number sl_no sequentially
+  S.publications[deptId].forEach((p, idx) => { p.sl_no = idx + 1; });
+  save();
+  audit(CU.name, deptId, 'Publication-2026', `Deleted publication #${slNo}`);
+
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+    await fetch(`${apiBase}/api/publications/${deptId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publications: S.publications[deptId] })
+    });
+  } catch(e){}
+
+  if(CURRENT_PAGE === 'pub2026-dept') renderPub2026DeptPage();
+  else if(CURRENT_PAGE === 'rpc-dept') {
+    const container = document.getElementById('rpc-pub2026');
+    if(container) container.innerHTML = renderPub2026Block(deptId);
+  }
+}
+
+async function clearDepartmentPublications(deptId){
+  if(!confirm(`Clear ALL publication records for department "${deptId}"? This cannot be undone.`)) return;
+  if(!S.publications) S.publications = {};
+  S.publications[deptId] = [];
+  if(window.pubFilters && window.pubFilters[deptId]){
+    window.pubFilters[deptId] = { month: '', faculty: '' };
+  }
+  save();
+  audit(CU.name, deptId, 'Publication-2026', `Cleared all publications`);
+
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+    await fetch(`${apiBase}/api/publications/${deptId}`, { method: 'DELETE' });
+  } catch(e){}
+
+  if(CURRENT_PAGE === 'pub2026-dept') renderPub2026DeptPage();
+  else if(CURRENT_PAGE === 'rpc-dept') {
+    const container = document.getElementById('rpc-pub2026');
+    if(container) container.innerHTML = renderPub2026Block(deptId);
+  }
+}
+
+// Global listener for closing dropdowns when clicking outside
+if(!window._pubDropdownListenerAdded){
+  window._pubDropdownListenerAdded = true;
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.pub-dropdown')){
+      document.querySelectorAll('.pub-dropdown-menu').forEach(m => m.style.display = 'none');
+    }
+  });
+}
+
+function togglePubDropdown(menuId){
+  const target = document.getElementById(menuId);
+  if(!target) return;
+  const isCurrentlyOpen = target.style.display === 'block';
+  document.querySelectorAll('.pub-dropdown-menu').forEach(m => m.style.display = 'none');
+  if(!isCurrentlyOpen){
+    target.style.display = 'block';
+  }
+}
+
+function selectPubFilter(deptId, filterType, val){
+  if(!window.pubFilters) window.pubFilters = {};
+  if(!window.pubFilters[deptId]) window.pubFilters[deptId] = { month: '', faculty: '' };
+  window.pubFilters[deptId][filterType] = val;
+  document.querySelectorAll('.pub-dropdown-menu').forEach(m => m.style.display = 'none');
+  applyPubFilters(deptId);
+}
+
+function clearAllPubFilters(deptId){
+  if(!window.pubFilters) window.pubFilters = {};
+  window.pubFilters[deptId] = { month: '', faculty: '' };
+  document.querySelectorAll('.pub-dropdown-menu').forEach(m => m.style.display = 'none');
+  applyPubFilters(deptId);
+}
+
+function updateFilterDropdownOptions(deptId){
+  const pubs = (S.publications && S.publications[deptId]) || [];
+  const curMonth = (window.pubFilters && window.pubFilters[deptId]?.month) || '';
+  const curFaculty = (window.pubFilters && window.pubFilters[deptId]?.faculty) || '';
+
+  const monthCounts = {};
+  pubs.forEach(p => {
+    const m = (p.pub_month || '').trim();
+    if(m) monthCounts[m] = (monthCounts[m] || 0) + 1;
+  });
+  const distinctMonths = Object.keys(monthCounts).sort();
+
+  const mMenu = document.getElementById('pub-menu-month');
+  if(mMenu){
+    mMenu.innerHTML = `
+      <div class="pub-drop-item ${!curMonth?'active':''}" onclick="selectPubFilter('${deptId}', 'month', '')">
+        <span>All Months</span>
+        <span class="badge b-pend">${pubs.length}</span>
+      </div>
+      ${distinctMonths.map(m => `
+        <div class="pub-drop-item ${(curMonth.toLowerCase()===m.toLowerCase())?'active':''}" onclick="selectPubFilter('${deptId}', 'month', '${m.replace(/'/g, "\\'")}')">
+          <span>${m}</span>
+          <span class="badge b-info">${monthCounts[m]}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  const facultyCounts = {};
+  pubs.forEach(p => {
+    const f = (p.faculty_name || '').trim();
+    if(f) facultyCounts[f] = (facultyCounts[f] || 0) + 1;
+  });
+  const distinctFaculty = Object.keys(facultyCounts).sort();
+
+  const fMenu = document.getElementById('pub-menu-faculty');
+  if(fMenu){
+    fMenu.innerHTML = `
+      <div class="pub-drop-item ${!curFaculty?'active':''}" onclick="selectPubFilter('${deptId}', 'faculty', '')">
+        <span>All Faculty</span>
+        <span class="badge b-pend">${pubs.length}</span>
+      </div>
+      ${distinctFaculty.map(f => `
+        <div class="pub-drop-item ${(curFaculty.toLowerCase()===f.toLowerCase())?'active':''}" onclick="selectPubFilter('${deptId}', 'faculty', '${f.replace(/'/g, "\\'")}')">
+          <span>${f}</span>
+          <span class="badge b-info">${facultyCounts[f]}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+}
+
+function applyPubFilters(deptId){
+  if(!window.pubFilters) window.pubFilters = {};
+  if(!window.pubFilters[deptId]) window.pubFilters[deptId] = { month: '', faculty: '' };
+
+  const curMonth = window.pubFilters[deptId].month || '';
+  const curFaculty = window.pubFilters[deptId].faculty || '';
+  const pubs = (S.publications && S.publications[deptId]) || [];
+
+  const filtered = pubs.filter(p => {
+    const mMatch = !curMonth || (p.pub_month || '').trim().toLowerCase() === curMonth.trim().toLowerCase();
+    const fMatch = !curFaculty || (p.faculty_name || '').trim().toLowerCase() === curFaculty.trim().toLowerCase();
+    return mMatch && fMatch;
+  });
+
+  // Update Month button
+  const mBtnLbl = document.getElementById('pub-btn-month-lbl');
+  if(mBtnLbl) mBtnLbl.textContent = curMonth ? curMonth : 'All Months';
+  const mBtn = document.getElementById('pub-btn-month');
+  if(mBtn){
+    if(curMonth){
+      mBtn.style.background = '#eff6ff';
+      mBtn.style.borderColor = 'var(--blue)';
+      mBtn.style.color = 'var(--blue)';
+    } else {
+      mBtn.style.background = '#fff';
+      mBtn.style.borderColor = 'var(--g300)';
+      mBtn.style.color = 'var(--g700)';
+    }
+  }
+
+  // Update Faculty button
+  const fBtnLbl = document.getElementById('pub-btn-faculty-lbl');
+  if(fBtnLbl) fBtnLbl.textContent = curFaculty ? curFaculty : 'All Faculty';
+  const fBtn = document.getElementById('pub-btn-faculty');
+  if(fBtn){
+    if(curFaculty){
+      fBtn.style.background = '#eff6ff';
+      fBtn.style.borderColor = 'var(--blue)';
+      fBtn.style.color = 'var(--blue)';
+    } else {
+      fBtn.style.background = '#fff';
+      fBtn.style.borderColor = 'var(--g300)';
+      fBtn.style.color = 'var(--g700)';
+    }
+  }
+
+  // Update Clear button
+  const clearBtn = document.getElementById('pub-btn-clear');
+  if(clearBtn) clearBtn.style.display = (curMonth || curFaculty) ? 'inline-flex' : 'none';
+
+  // Update summary badge
+  const countBadge = document.getElementById('pub-filter-count-badge');
+  if(countBadge){
+    countBadge.innerHTML = (curMonth || curFaculty)
+      ? `Showing <b style="color:var(--navy)">${filtered.length}</b> of <b>${pubs.length}</b> publications`
+      : `Showing all <b style="color:var(--navy)">${pubs.length}</b> publications`;
+  }
+
+  const topBadge = document.getElementById('pub-badge-count');
+  if(topBadge){
+    topBadge.textContent = (curMonth || curFaculty)
+      ? `${filtered.length} of ${pubs.length} Records (Filtered)`
+      : `${pubs.length} Records`;
+  }
+
+  // Update table rows
+  const tbody = document.getElementById('pub-table-body');
+  if(tbody) tbody.innerHTML = renderPubTableRows(filtered, deptId);
+
+  // Update active state in menu items
+  updateFilterDropdownOptions(deptId);
+}
+
+function renderPubTableRows(pubs, deptId){
+  if(!pubs || pubs.length===0){
+    return `<tr><td colspan="11" style="text-align:center;padding:32px 20px;color:var(--g500);font-size:13px">
+      <div style="font-size:26px;margin-bottom:6px">🔍</div>
+      <b>No publications match the current criteria.</b><br>
+      <span style="font-size:12px;color:var(--g400)">Try selecting another month/faculty or reset the filters above.</span>
+      <div style="margin-top:10px"><button class="btn btn-out btn-xs" onclick="clearAllPubFilters('${deptId}')">✕ Clear Filters</button></div>
+    </td></tr>`;
+  }
+  return pubs.map((p, i) => {
+    const sl = p.sl_no || (i + 1);
+    const qCol = { Q1: '#7c3aed', Q2: '#2563eb', Q3: '#0891b2', Q4: '#059669' }[p.quartile] || 'var(--navy)';
+    const qBg = { Q1: '#f5f3ff', Q2: '#eff6ff', Q3: '#ecfeff', Q4: '#ecfdf5' }[p.quartile] || 'var(--g100)';
+    const doiClean = String(p.doi || '').trim();
+    const doiHref = doiClean ? (doiClean.startsWith('http') ? doiClean : `https://${doiClean}`) : '';
+
+    return `
+      <tr id="pub-row-${sl}">
+        <td><input type="number" class="inp" id="pub-row-sl-${sl}" value="${sl}" min="1" style="width:48px;text-align:center;padding:4px" onchange="updatePubMemoryField('${deptId}', ${sl}, 'sl_no', Number(this.value))"></td>
+        <td><input type="text" class="inp" id="pub-row-fac-${sl}" value="${(p.faculty_name||'').replace(/"/g, '&quot;')}" style="min-width:130px;font-weight:700" onchange="updatePubMemoryField('${deptId}', ${sl}, 'faculty_name', this.value)"></td>
+        <td><input type="text" class="inp" id="pub-row-title-${sl}" value="${(p.title||'').replace(/"/g, '&quot;')}" style="min-width:240px" onchange="updatePubMemoryField('${deptId}', ${sl}, 'title', this.value)"></td>
+        <td><input type="text" class="inp" id="pub-row-authors-${sl}" value="${(p.authors||'').replace(/"/g, '&quot;')}" style="min-width:170px" onchange="updatePubMemoryField('${deptId}', ${sl}, 'authors', this.value)"></td>
+        <td><input type="text" class="inp" id="pub-row-claim-${sl}" value="${(p.claimed_by||'').replace(/"/g, '&quot;')}" style="min-width:130px" onchange="updatePubMemoryField('${deptId}', ${sl}, 'claimed_by', this.value)"></td>
+        <td>
+          <select class="inp" id="pub-row-idx-${sl}" style="min-width:105px" onchange="updatePubMemoryField('${deptId}', ${sl}, 'indexing', this.value)">
+            <option value="Scopus" ${(p.indexing==='Scopus')?'selected':''}>Scopus</option>
+            <option value="WoS" ${(p.indexing==='WoS')?'selected':''}>WoS</option>
+            <option value="Scopus/WoS" ${(p.indexing==='Scopus/WoS')?'selected':''}>Scopus/WoS</option>
+          </select>
+        </td>
+        <td>
+          <select class="inp" id="pub-row-q-${sl}" style="min-width:70px;font-weight:800;color:${qCol};background:${qBg}" onchange="this.style.color={Q1:'#7c3aed',Q2:'#2563eb',Q3:'#0891b2',Q4:'#059669'}[this.value]||'#000';updatePubMemoryField('${deptId}', ${sl}, 'quartile', this.value)">
+            <option value="Q1" ${(p.quartile==='Q1')?'selected':''}>Q1</option>
+            <option value="Q2" ${(p.quartile==='Q2')?'selected':''}>Q2</option>
+            <option value="Q3" ${(p.quartile==='Q3')?'selected':''}>Q3</option>
+            <option value="Q4" ${(p.quartile==='Q4')?'selected':''}>Q4</option>
+          </select>
+        </td>
+        <td><input type="text" class="inp" id="pub-row-month-${sl}" value="${(p.pub_month||'').replace(/"/g, '&quot;')}" style="width:90px;text-align:center" onchange="updatePubMemoryField('${deptId}', ${sl}, 'pub_month', this.value)"></td>
+        <td><input type="text" class="inp" id="pub-row-journal-${sl}" value="${(p.journal_name||'').replace(/"/g, '&quot;')}" style="min-width:200px" onchange="updatePubMemoryField('${deptId}', ${sl}, 'journal_name', this.value)"></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input type="text" class="inp" id="pub-row-doi-${sl}" value="${doiClean.replace(/"/g, '&quot;')}" style="min-width:180px;font-size:11px" placeholder="https://doi.org/..." onchange="updatePubMemoryField('${deptId}', ${sl}, 'doi', this.value)">
+            ${doiHref ? `<a href="${doiHref}" target="_blank" rel="noopener noreferrer" class="btn btn-out btn-sm" style="padding:4px 7px" title="Open DOI link">🔗</a>` : ''}
+          </div>
+        </td>
+        <td style="text-align:center">
+          <button class="btn btn-red btn-sm" onclick="deletePubRow('${deptId}', ${sl})" title="Delete row" style="padding:4px 8px">🗑</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderPub2026Block(deptId){
+  if(!S.publications) S.publications = {};
+  if(!S.publications[deptId]) {
+    fetchDepartmentPublicationsFromDB(deptId).then(data => {
+      if(data && (CURRENT_PAGE === 'pub2026-dept' || CURRENT_PAGE === 'rpc-dept')){
+        if(CURRENT_PAGE === 'pub2026-dept') renderPub2026DeptPage();
+        else {
+          const container = document.getElementById('rpc-pub2026');
+          if(container) container.innerHTML = renderPub2026Block(deptId);
+        }
+      }
+    });
+  }
+
+  const pubs = S.publications[deptId] || [];
+  const q1Count = pubs.filter(p => (p.quartile||'').toUpperCase() === 'Q1').length;
+  const q2Count = pubs.filter(p => (p.quartile||'').toUpperCase() === 'Q2').length;
+  const q3Count = pubs.filter(p => (p.quartile||'').toUpperCase() === 'Q3').length;
+  const q4Count = pubs.filter(p => (p.quartile||'').toUpperCase() === 'Q4').length;
+  const scopusCount = pubs.filter(p => (p.indexing||'').includes('Scopus')).length;
+  const wosCount = pubs.filter(p => (p.indexing||'').includes('WoS')).length;
+
+  // Filter state for this dept
+  if(!window.pubFilters) window.pubFilters = {};
+  if(!window.pubFilters[deptId]) window.pubFilters[deptId] = { month: '', faculty: '' };
+  const curMonth = window.pubFilters[deptId].month || '';
+  const curFaculty = window.pubFilters[deptId].faculty || '';
+
+  // Extract distinct months from DB data with counts
+  const monthCounts = {};
+  pubs.forEach(p => {
+    const m = (p.pub_month || '').trim();
+    if(m) monthCounts[m] = (monthCounts[m] || 0) + 1;
+  });
+  const distinctMonths = Object.keys(monthCounts).sort();
+
+  // Extract distinct faculty from DB data with counts
+  const facultyCounts = {};
+  pubs.forEach(p => {
+    const f = (p.faculty_name || '').trim();
+    if(f) facultyCounts[f] = (facultyCounts[f] || 0) + 1;
+  });
+  const distinctFaculty = Object.keys(facultyCounts).sort();
+
+  // Filtered rows
+  const filteredPubs = pubs.filter(p => {
+    const mMatch = !curMonth || (p.pub_month || '').trim().toLowerCase() === curMonth.trim().toLowerCase();
+    const fMatch = !curFaculty || (p.faculty_name || '').trim().toLowerCase() === curFaculty.trim().toLowerCase();
+    return mMatch && fMatch;
+  });
+
   return `
-    <div class="card">
-      <div class="ch" style="background:linear-gradient(135deg,#1e1060,#2563eb);color:#fff;border:none">
-        <h3 style="color:#fff">📑 Publication-2026 — Quarterly Count Entry</h3>
-        <span style="font-size:11px;opacity:.7">Academic Year 2025 · Current NIRF 2026 Submission</span>
+    <!-- Top Summary Metric Cards -->
+    <div class="mcg" style="margin-bottom:18px">
+      <div class="mc grn">
+        <div class="mlbl">Total Publications</div>
+        <div class="mval" id="kpi-pub-total">${pubs.length}</div>
+        <div class="msub">Academic Year 2025–26</div>
       </div>
+      <div class="mc ppl">
+        <div class="mlbl">Q1 Journals</div>
+        <div class="mval" id="kpi-pub-q1">${q1Count}</div>
+        <div class="msub">Top Quartile (Highest Impact)</div>
+      </div>
+      <div class="mc nvy">
+        <div class="mlbl">Q2 Journals</div>
+        <div class="mval" id="kpi-pub-q2">${q2Count}</div>
+        <div class="msub">High Impact Journals</div>
+      </div>
+      <div class="mc tel">
+        <div class="mlbl">Q3 &amp; Q4 Journals</div>
+        <div class="mval" id="kpi-pub-q34">${q3Count + q4Count}</div>
+        <div class="msub">Q3: ${q3Count} · Q4: ${q4Count}</div>
+      </div>
+      <div class="mc gld">
+        <div class="mlbl">Scopus / WoS Indexed</div>
+        <div class="mval" id="kpi-pub-indexed">${scopusCount + wosCount}</div>
+        <div class="msub">Scopus: ${scopusCount} · WoS: ${wosCount}</div>
+      </div>
+    </div>
+
+    <!-- Upload and Manual Entry Side-by-Side Cards -->
+    <div class="g2 mb4">
+      <!-- Method 1: Excel Upload -->
+      <div class="card">
+        <div class="ch">
+          <h3>Method 1 — Excel Upload (ETL Pipeline)</h3>
+          <button class="btn btn-out btn-sm" onclick="downloadPub2026Sample()">⬇ Sample Excel</button>
+        </div>
+        <div class="cb">
+          <div class="alt alt-i" style="margin-bottom:12px;font-size:11.5px;word-break:break-word">
+            <b>Required Columns:</b> Sl.No. | Name of the Faculty | Paper Title | List of Authors | Claim by Faculty (Name) | Indexing (Scopus/WoS) | Quartile (Q1/Q2/Q3/Q4) | Publication Month (MonYYYY) | Journal Name/Conference Name | DOI as link
+          </div>
+          <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--g300);border-radius:var(--r);padding:24px;cursor:pointer;transition:.15s;background:var(--white)"
+            onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--sky)'"
+            onmouseout="this.style.borderColor='var(--g300)';this.style.background='var(--white)'">
+            <div style="font-size:32px">📊</div>
+            <p style="font-size:13px;font-weight:700;color:var(--navy);margin-top:8px">Click to upload Publication Excel (.xlsx, .xls)</p>
+            <p style="font-size:11px;color:var(--g400);margin-top:4px">ETL pipeline will process and save records into MongoDB database "publication_data" (table: ${deptId})</p>
+            <input type="file" accept=".xlsx,.xls" style="display:none" onchange="uploadPublicationExcel(this, '${deptId}')">
+          </label>
+          <div id="pub-xl-status" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- Method 2: Manual Entry -->
+      <div class="card">
+        <div class="ch"><h3>Method 2 — Manual Entry</h3></div>
+        <div class="cb">
+          <div class="frow fc2">
+            <div class="fl"><label class="req">Faculty Name</label><input type="text" id="p-fac-name" class="inp" placeholder="e.g. Dr. Chitra K"></div>
+            <div class="fl"><label class="req">Paper Title</label><input type="text" id="p-title" class="inp" placeholder="Full paper title"></div>
+            <div class="fl"><label>List of Authors</label><input type="text" id="p-authors" class="inp" placeholder="Author 1, Author 2, ..."></div>
+            <div class="fl"><label>Claim by Faculty</label><input type="text" id="p-claimed" class="inp" placeholder="Claimed by faculty name"></div>
+            <div class="fl"><label>Indexing</label>
+              <select id="p-idx" class="inp">
+                <option value="Scopus">Scopus</option>
+                <option value="WoS">WoS</option>
+                <option value="Scopus/WoS">Scopus/WoS</option>
+              </select>
+            </div>
+            <div class="fl"><label>Quartile</label>
+              <select id="p-quartile" class="inp">
+                <option value="Q1">Q1</option>
+                <option value="Q2" selected>Q2</option>
+                <option value="Q3">Q3</option>
+                <option value="Q4">Q4</option>
+              </select>
+            </div>
+            <div class="fl"><label>Publication Month</label><input type="text" id="p-month" class="inp" placeholder="e.g. Jan 2026"></div>
+            <div class="fl"><label>Journal / Conference</label><input type="text" id="p-journal" class="inp" placeholder="Journal or conference name"></div>
+            <div class="fl" style="grid-column:span 2"><label>DOI Link</label><input type="text" id="p-doi" class="inp" placeholder="https://doi.org/10.1007/..."></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+            <button class="btn btn-pri" onclick="addManualPublication('${deptId}')">+ Add Publication</button>
+            <span id="pub-manual-status"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Editable Publication Table Card -->
+    <div class="card" style="width:100%;max-width:100%">
+      <div class="ch">
+        <div style="display:flex;align-items:center;gap:10px">
+          <h3>Publications 2026 Table (Editable)</h3>
+          <span class="badge ${(curMonth||curFaculty)?'b-info':'b-done'}" id="pub-badge-count">
+            ${(curMonth||curFaculty) ? `${filteredPubs.length} of ${pubs.length} Records (Filtered)` : `${pubs.length} Records`}
+          </span>
+        </div>
+        <div class="flex gap2">
+          <button class="btn btn-out btn-sm" onclick="exportPub2026ToExcel('${deptId}')">⬇ Export Excel</button>
+          <button class="btn btn-pri btn-sm" onclick="saveAllPublications('${deptId}')">💾 Save Table to DB</button>
+          <button class="btn btn-red btn-sm" onclick="clearDepartmentPublications('${deptId}')">🗑 Clear All</button>
+        </div>
+      </div>
+
+      <!-- Filter Toolbar: Month & Faculty Name Dropdowns -->
+      <div style="padding:12px 18px;background:var(--g50);border-bottom:1px solid var(--g200);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:800;color:var(--navy);display:flex;align-items:center;gap:5px">
+            <span style="font-size:14px">⚡</span> Filter Data:
+          </span>
+
+          <!-- Month Filter Dropdown Button -->
+          <div class="pub-dropdown">
+            <button type="button" class="btn btn-out btn-sm" id="pub-btn-month" onclick="togglePubDropdown('pub-menu-month')" style="display:flex;align-items:center;gap:6px;font-weight:700;${curMonth ? 'background:#eff6ff;border-color:var(--blue);color:var(--blue);' : 'background:#fff;'}min-width:150px;justify-content:space-between">
+              <span>📅 <span id="pub-btn-month-lbl">${curMonth ? curMonth : 'All Months'}</span></span>
+              <span style="font-size:9px;opacity:.6">▼</span>
+            </button>
+            <div id="pub-menu-month" class="pub-dropdown-menu">
+              <div class="pub-drop-item ${!curMonth?'active':''}" onclick="selectPubFilter('${deptId}', 'month', '')">
+                <span>All Months</span>
+                <span class="badge b-pend">${pubs.length}</span>
+              </div>
+              ${distinctMonths.map(m => `
+                <div class="pub-drop-item ${(curMonth.toLowerCase()===m.toLowerCase())?'active':''}" onclick="selectPubFilter('${deptId}', 'month', '${m.replace(/'/g, "\\'")}')">
+                  <span>${m}</span>
+                  <span class="badge b-info">${monthCounts[m]}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Faculty Name Filter Dropdown Button -->
+          <div class="pub-dropdown">
+            <button type="button" class="btn btn-out btn-sm" id="pub-btn-faculty" onclick="togglePubDropdown('pub-menu-faculty')" style="display:flex;align-items:center;gap:6px;font-weight:700;${curFaculty ? 'background:#eff6ff;border-color:var(--blue);color:var(--blue);' : 'background:#fff;'}min-width:170px;justify-content:space-between">
+              <span>👤 <span id="pub-btn-faculty-lbl">${curFaculty ? curFaculty : 'All Faculty'}</span></span>
+              <span style="font-size:9px;opacity:.6">▼</span>
+            </button>
+            <div id="pub-menu-faculty" class="pub-dropdown-menu">
+              <div class="pub-drop-item ${!curFaculty?'active':''}" onclick="selectPubFilter('${deptId}', 'faculty', '')">
+                <span>All Faculty</span>
+                <span class="badge b-pend">${pubs.length}</span>
+              </div>
+              ${distinctFaculty.map(f => `
+                <div class="pub-drop-item ${(curFaculty.toLowerCase()===f.toLowerCase())?'active':''}" onclick="selectPubFilter('${deptId}', 'faculty', '${f.replace(/'/g, "\\'")}')">
+                  <span>${f}</span>
+                  <span class="badge b-info">${facultyCounts[f]}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Clear Filters Button -->
+          <button id="pub-btn-clear" class="btn btn-out btn-sm" onclick="clearAllPubFilters('${deptId}')" style="display:${(curMonth || curFaculty)?'inline-flex':'none'};align-items:center;gap:4px;color:var(--red);border-color:var(--red-light);background:#fff1f2">
+            ✕ Reset Filters
+          </button>
+        </div>
+
+        <div id="pub-filter-count-badge" style="font-size:12px;color:var(--g600);font-weight:600">
+          ${(curMonth || curFaculty)
+            ? `Showing <b style="color:var(--navy)">${filteredPubs.length}</b> of <b>${pubs.length}</b> publications`
+            : `Showing all <b style="color:var(--navy)">${pubs.length}</b> publications`}
+        </div>
+      </div>
+
       <div class="cb">
-        <div class="alt alt-i">Enter the <b>2025 publication count</b> per category for <b>NIRF 2026</b> submission. This block is separate from the multi-year RPC table and is used for department-level tracking and the principal Publication-2026 overview.</div>
-
-        <!-- ── Faculty / Target / Gap summary rows ── -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px;margin-top:14px">
-          <div style="padding:14px 16px;background:#f0f2f8;border:1.5px solid var(--g200);border-radius:10px;border-left:4px solid var(--blue)">
-            <div style="font-size:10px;font-weight:800;color:var(--g600);text-transform:uppercase;letter-spacing:.06em">Number of Faculty in Dept</div>
-            <input type="number" id="pub26-fac" value="${facCount}" min="0"
-              style="width:100%;font-size:28px;font-weight:900;color:var(--navy);margin-top:4px;border:1.5px solid var(--g200);border-radius:8px;padding:2px 8px;outline:none;background:#fff;font-family:inherit"
-              oninput="savePub2026('${deptId}')">
-            <div style="font-size:11px;color:var(--g400);margin-top:2px">Entered manually for this dept</div>
+        <div class="alt alt-i" style="margin-bottom:12px">
+          All cells in the table below are editable. Make modifications directly in the fields and click <b>Save Table to DB</b> to persist updates to MongoDB table "<code>${deptId}</code>" in database "<code>publication_data</code>".
+        </div>
+        <div class="tw">
+          <table style="min-width:1250px">
+            <thead>
+              <tr>
+                <th style="width:55px">Sl.No.</th>
+                <th>Name of the Faculty</th>
+                <th>Paper Title</th>
+                <th>List of Authors</th>
+                <th>Claim by Faculty (Name)</th>
+                <th>Indexing (Scopus/WoS)</th>
+                <th>Quartile</th>
+                <th>Publication Month</th>
+                <th>Journal Name/Conference Name</th>
+                <th>DOI as link</th>
+                <th style="width:65px">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="pub-table-body">
+              ${renderPubTableRows(filteredPubs, deptId)}
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn btn-pri" onclick="saveAllPublications('${deptId}')">💾 Save Table to DB</button>
+            <span id="pub-table-save-status"></span>
           </div>
-          <div style="padding:14px 16px;background:#eff6ff;border:1.5px solid rgba(37,99,235,.2);border-radius:10px;border-left:4px solid var(--blue)">
-            <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.06em">Target Publications</div>
-            <div id="pub26-target" style="font-size:28px;font-weight:900;color:var(--blue);margin-top:4px">${target}</div>
-            <div id="pub26-target-note" style="font-size:11px;color:var(--g400);margin-top:2px">Faculty × 3 = ${facCount} × 3</div>
-          </div>
-          <div style="padding:14px 16px;background:${gap<=0?'var(--green-light)':'var(--red-light)'};border:1.5px solid ${gap<=0?'rgba(5,150,105,.2)':'rgba(220,38,38,.2)'};border-radius:10px;border-left:4px solid ${gapColor}">
-            <div style="font-size:10px;font-weight:800;color:${gapColor};text-transform:uppercase;letter-spacing:.06em">Gap in Publication</div>
-            <div id="pub26-gap" style="font-size:28px;font-weight:900;color:${gapColor};margin-top:4px">${Math.abs(gap)}</div>
-            <div id="pub26-gap-lbl" style="font-size:11px;color:${gapColor};margin-top:2px;font-weight:600">${gapLabel}</div>
+          <div style="font-size:12px;color:var(--g500)">
+            Department: <b>${deptId}</b> &nbsp;|&nbsp; Total Records: <b>${pubs.length}</b>
           </div>
         </div>
-
-        <!-- ── Category inputs ── -->
-        <div style="display:grid;gap:12px">
-          ${cats.map(c=>`
-          <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:${c.bg};border:1.5px solid ${c.color}22;border-radius:10px;border-left:4px solid ${c.color}">
-            <div style="flex:1">
-              <div style="font-size:12px;font-weight:700;color:${c.color}">${c.label}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <label style="font-size:11px;font-weight:600;color:var(--g600)">Count</label>
-              <input type="number" id="pub26-${c.k}" value="${d[c.k]||0}" min="0"
-                style="width:90px;padding:7px 10px;border:1.5px solid ${c.color}55;border-radius:8px;font-size:15px;font-weight:800;text-align:center;outline:none;color:${c.color};background:#fff;font-family:inherit"
-                oninput="savePub2026('${deptId}')">
-            </div>
-          </div>`).join('')}
-        </div>
-
-        <!-- ── Live Total ── -->
-        <div style="margin-top:18px;padding:16px 20px;background:linear-gradient(135deg,var(--navy),#1e1060);border-radius:12px;display:flex;align-items:center;justify-content:space-between;color:#fff">
-          <div>
-            <div style="font-size:11px;opacity:.6;font-weight:600;letter-spacing:.05em;text-transform:uppercase">Total Publications 2026</div>
-            <div style="font-size:11px;opacity:.45;margin-top:2px">Q1 + Q2 + Q3 + Q4 + Conference/Others</div>
-          </div>
-          <div id="pub26-total" style="font-size:42px;font-weight:900;background:linear-gradient(135deg,#fcd34d,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${total}</div>
-        </div>
-
-        <!-- ── Breakdown pills ── -->
-        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap" id="pub26-pills">
-          ${cats.map(c=>`<div style="display:flex;align-items:center;gap:5px;padding:5px 12px;background:${c.bg};border:1px solid ${c.color}33;border-radius:20px;font-size:12px">
-            <span style="font-weight:700;color:${c.color}" id="pub26-pill-${c.k}">${d[c.k]||0}</span>
-            <span style="color:var(--g600)">${c.k==='conf'?'Conf/Others':c.k.toUpperCase()}</span>
-          </div>`).join('')}
-        </div>
-
-        <button class="btn btn-pri" style="margin-top:16px" onclick="savePub2026('${deptId}')">💾 Save Publication-2026 Data</button>
       </div>
-    </div>`;
+    </div>
+  `;
 }
 
 function renderPub2026DeptPage(){
   const id=CU.deptId;
   const dept=DEPTS.find(d=>d.id===id);
-  document.getElementById('tb-title').textContent='Publication-2026 \u2014 '+dept.short;
+  document.getElementById('tb-title').textContent='Publication-2026 — '+dept.short;
   document.getElementById('mc').innerHTML=
-    '<div class="bc">Dashboard <span>\u203a</span> Publication-2026</div>'
-    +'<div class="stitle">Publication-2026 \u2014 '+dept.name+'</div>'
-    +'<div class="ssub">Enter total publication counts for Academic Year 2025 to track NIRF 2026 progress</div>'
+    '<div class="bc">Dashboard <span>›</span> Publication-2026</div>'
+    +'<div class="stitle">Publication-2026 — '+dept.name+'</div>'
+    +'<div class="ssub">Department-wise Research Publications tracking for Academic Year 2025–2026</div>'
     +renderPub2026Block(id);
 }
 
-function savePub2026(deptId){
-  S.pub2026=S.pub2026||{};
-  S.pub2026[deptId]=S.pub2026[deptId]||{};
-  const d=S.pub2026[deptId];
-  ['q1','q2','q3','q4','conf'].forEach(k=>{
-    const el=document.getElementById('pub26-'+k);
-    if(el) d[k]=Math.max(0,Number(el.value)||0);
-  });
-  const facEl=document.getElementById('pub26-fac');
-  if(facEl) d.fac=Math.max(0,Number(facEl.value)||0);
-  const total=(d.q1||0)+(d.q2||0)+(d.q3||0)+(d.q4||0)+(d.conf||0);
+// ══════════════════════════════════════════════════
+// IPR & PATENTS MODULE (MongoDB "patent_data" integration)
+// ══════════════════════════════════════════════════
 
-  // update total display
-  const tot=document.getElementById('pub26-total');
-  if(tot) tot.textContent=total;
+window.PATENTS_CACHE = window.PATENTS_CACHE || {};
+window.patentFilters = window.patentFilters || {};
 
-  // update pills
-  ['q1','q2','q3','q4','conf'].forEach(k=>{
-    const pill=document.getElementById('pub26-pill-'+k);
-    if(pill) pill.textContent=d[k]||0;
-  });
-
-  // update fac/target/gap row live
-  const facCount=getPub2026Faculty(deptId);
-  const target=facCount*3;
-  const targetEl=document.getElementById('pub26-target');
-  if(targetEl) targetEl.textContent=target;
-  const targetNoteEl=document.getElementById('pub26-target-note');
-  if(targetNoteEl) targetNoteEl.textContent='Faculty × 3 = '+facCount+' × 3';
-  const gap=target-total;
-  const gapColor=gap<=0?'var(--green)':'var(--red)';
-  const gapBg=gap<=0?'var(--green-light)':'var(--red-light)';
-  const gapBorder=gap<=0?'rgba(5,150,105,.2)':'rgba(220,38,38,.2)';
-  const gapLabel=gap<=0?'Surplus \u2212'+Math.abs(gap):'Needed +'+gap;
-
-  const gapEl=document.getElementById('pub26-gap');
-  if(gapEl){ gapEl.textContent=Math.abs(gap); gapEl.style.color=gapColor; }
-  const gapLblEl=document.getElementById('pub26-gap-lbl');
-  if(gapLblEl){ gapLblEl.textContent=gapLabel; gapLblEl.style.color=gapColor; }
-
-  // update gap card background colours
-  const gapCard=gapEl&&gapEl.closest('div[style*="border-left"]');
-  if(gapCard){
-    gapCard.style.background=gapBg;
-    gapCard.style.borderColor=gapBorder;
-    gapCard.style.borderLeftColor=gapColor;
+async function fetchDepartmentPatentsFromDB(deptId){
+  if(!deptId) return null;
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/patents/${deptId}?_t=${Date.now()}`, { cache: 'no-cache' });
+    if(!res.ok) return null;
+    const json = await res.json();
+    if(json.success && Array.isArray(json.data)){
+      window.PATENTS_CACHE[deptId] = json.data;
+      if(!S.patents) S.patents = {};
+      S.patents[deptId] = json.data;
+      return json.data;
+    }
+  } catch(e){
+    console.warn('Patent fetch from DB warning:', e);
   }
-  // update gap label header colour
-  const gapHdr=gapCard&&gapCard.querySelector('div[style*="uppercase"]');
-  if(gapHdr) gapHdr.style.color=gapColor;
+  return null;
+}
 
-  save();
-  audit(CU.name,deptId,'Publication-2026','Data saved — Total: '+total+' | Gap: '+gap);
+function downloadPatentSample(){
+  const sampleData = [
+    {
+      'Sl. No.': 1,
+      'Patent Application No.': '202641001245',
+      'Status of Patent (Published / Granted)': 'Published',
+      'Inventor/s Name': 'Dr. Chitra K, Dr. Ravi Kumar S',
+      'Title of the Patent': 'Blockchain-Enabled Decentralized Electronic Health Record Security System',
+      'Applicant/s Name': 'Dayananda Sagar Academy of Technology and Management',
+      'Patent Filed Date (DD/MM/YYYY)': '12/10/2025',
+      'Patent Published Date / Granted Date (DD/MM/YYYY)': '16/01/2026',
+      'Patent Publication Number / Patent Granted Number': '03/2026',
+      'Assignee/s Name (Institute Affiliation/s at time of Appication)': 'Dayananda Sagar Academy of Technology and Management, Bangalore',
+      'Here, attach Source Proof Screenshots/URL/ Website Links, etc.': 'https://ipindiaservices.gov.in/PublicSearch/PublicationSearch/PatentDetails?AppNo=202641001245'
+    },
+    {
+      'Sl. No.': 2,
+      'Patent Application No.': '202541088921',
+      'Status of Patent (Published / Granted)': 'Granted',
+      'Inventor/s Name': 'Dr. Anitha R, Dr. Suresh M',
+      'Title of the Patent': 'Intelligent IoT Edge Gateway for Predictive Cardiac Health Telemonitoring',
+      'Applicant/s Name': 'Dayananda Sagar Academy of Technology and Management',
+      'Patent Filed Date (DD/MM/YYYY)': '04/05/2024',
+      'Patent Published Date / Granted Date (DD/MM/YYYY)': '28/01/2026',
+      'Patent Publication Number / Patent Granted Number': 'IN 524108',
+      'Assignee/s Name (Institute Affiliation/s at time of Appication)': 'Dayananda Sagar Academy of Technology and Management, Bangalore',
+      'Here, attach Source Proof Screenshots/URL/ Website Links, etc.': 'https://ipindiaservices.gov.in/PatentSearch/GrantedSearch/PatentDetails?PatentNo=IN524108'
+    },
+    {
+      'Sl. No.': 3,
+      'Patent Application No.': '202641003412',
+      'Status of Patent (Published / Granted)': 'Published',
+      'Inventor/s Name': 'Dr. Ravi Kumar, Dr. Priya S',
+      'Title of the Patent': 'Deep Learning System for Early-Stage Diabetic Retinopathy Detection',
+      'Applicant/s Name': 'Dayananda Sagar Academy of Technology and Management',
+      'Patent Filed Date (DD/MM/YYYY)': '18/11/2025',
+      'Patent Published Date / Granted Date (DD/MM/YYYY)': '13/02/2026',
+      'Patent Publication Number / Patent Granted Number': '07/2026',
+      'Assignee/s Name (Institute Affiliation/s at time of Appication)': 'Dayananda Sagar Academy of Technology and Management, Bangalore',
+      'Here, attach Source Proof Screenshots/URL/ Website Links, etc.': 'https://ipindia.gov.in/journal-archive/2026/journal_07_2026.pdf'
+    },
+    {
+      'Sl. No.': 4,
+      'Patent Application No.': '202441065431',
+      'Status of Patent (Published / Granted)': 'Granted',
+      'Inventor/s Name': 'Dr. Mahesh B, Dr. Chitra K',
+      'Title of the Patent': 'Adaptive Energy-Harvesting Sensor Node Architecture for Precision Agriculture',
+      'Applicant/s Name': 'Dayananda Sagar Academy of Technology and Management',
+      'Patent Filed Date (DD/MM/YYYY)': '15/02/2024',
+      'Patent Published Date / Granted Date (DD/MM/YYYY)': '20/02/2026',
+      'Patent Publication Number / Patent Granted Number': 'IN 530219',
+      'Assignee/s Name (Institute Affiliation/s at time of Appication)': 'Dayananda Sagar Academy of Technology and Management, Bangalore',
+      'Here, attach Source Proof Screenshots/URL/ Website Links, etc.': 'https://ipindiaservices.gov.in/PatentSearch/GrantedSearch/PatentDetails?PatentNo=IN530219'
+    }
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(sampleData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Patents_Sample');
+  XLSX.writeFile(wb, 'DSATM_IPR_Patents_Sample.xlsx');
+}
+
+async function uploadPatentExcel(inputEl, deptId){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('patent-xl-status');
+  if(statusEl) statusEl.innerHTML = '<span style="color:var(--blue);font-weight:700">⏳ Reading Excel file and running ETL pipeline...</span>';
+
+  const reader = new FileReader();
+  reader.onload = async function(e){
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      if(!rawRows || rawRows.length === 0){
+        if(statusEl) statusEl.innerHTML = '<span style="color:var(--red);font-weight:700">⚠️ No data rows found in uploaded Excel sheet</span>';
+        return;
+      }
+
+      const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+      const res = await fetch(`${apiBase}/api/patents/${deptId}/etl-pipeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: rawRows, mode: 'replace' })
+      });
+      const resJson = await res.json();
+      if(res.ok && resJson.success){
+        window.PATENTS_CACHE[deptId] = resJson.data;
+        if(!S.patents) S.patents = {};
+        S.patents[deptId] = resJson.data;
+
+        if(statusEl){
+          statusEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ ETL Success: Saved ${resJson.importedCount} patent records to MongoDB database "patent_data" (table: ${deptId})!</span>`;
+        }
+
+        setTimeout(() => {
+          if(CURRENT_PAGE === 'ipr-dept') renderIPRDeptPage();
+          else if(CURRENT_PAGE === 'rpc-dept'){
+            const container = document.getElementById('rpc-ipr');
+            if(container) container.innerHTML = renderIPRBlock(deptId);
+          }
+        }, 1000);
+      } else {
+        if(statusEl) statusEl.innerHTML = `<span style="color:var(--red);font-weight:700">⚠️ ETL Upload failed: ${resJson.message || 'Unknown error'}</span>`;
+      }
+    } catch(err){
+      if(statusEl) statusEl.innerHTML = `<span style="color:var(--red);font-weight:700">⚠️ Error parsing Excel: ${err.message}</span>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function addManualPatent(deptId){
+  const appNo = document.getElementById('pat-app-no')?.value?.trim();
+  const status = document.getElementById('pat-status')?.value || 'Published';
+  const inventor = document.getElementById('pat-inventor')?.value?.trim();
+  const title = document.getElementById('pat-title')?.value?.trim();
+  const applicant = document.getElementById('pat-applicant')?.value?.trim() || 'Dayananda Sagar Academy of Technology and Management';
+  const filedDate = document.getElementById('pat-filed-date')?.value?.trim();
+  const pubGrantedDate = document.getElementById('pat-pub-granted-date')?.value?.trim();
+  const pubGrantedNo = document.getElementById('pat-pub-granted-no')?.value?.trim();
+  const assignee = document.getElementById('pat-assignee')?.value?.trim() || 'Dayananda Sagar Academy of Technology and Management, Bangalore';
+  const proof = document.getElementById('pat-proof')?.value?.trim();
+  const statusEl = document.getElementById('pat-manual-status');
+
+  if(!appNo || !title || !inventor){
+    if(statusEl) statusEl.innerHTML = '<span style="color:var(--red);font-weight:700;font-size:12px">⚠️ Please enter Application No., Inventor/s Name, and Patent Title</span>';
+    return;
+  }
+
+  const currentList = (window.PATENTS_CACHE && window.PATENTS_CACHE[deptId]) || (S.patents && S.patents[deptId]) || [];
+  const nextSl = currentList.length + 1;
+
+  let pubMonth = '';
+  if(pubGrantedDate){
+    const parts = pubGrantedDate.split(/[\/\-\.]/);
+    if(parts.length === 3){
+      const mIdx = parseInt(parts[1], 10) - 1;
+      const months = ['Jan', 'Feb', 'March', 'April', 'May', 'June', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+      const year = parts[2].length === 2 ? ('20' + parts[2]) : parts[2];
+      if(mIdx >= 0 && mIdx < 12 && year) pubMonth = `${months[mIdx]} ${year}`;
+    }
+  }
+
+  const newRecord = {
+    sl_no: nextSl,
+    app_no: appNo,
+    status: status,
+    inventor_name: inventor,
+    title: title,
+    applicant_name: applicant,
+    filed_date: filedDate,
+    pub_granted_date: pubGrantedDate,
+    pub_granted_no: pubGrantedNo,
+    assignee_name: assignee,
+    source_proof: proof,
+    pub_month: pubMonth
+  };
+
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/patents/${deptId}/row`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRecord)
+    });
+    const resJson = await res.json();
+    if(res.ok && resJson.success){
+      window.PATENTS_CACHE[deptId] = resJson.data;
+      if(!S.patents) S.patents = {};
+      S.patents[deptId] = resJson.data;
+
+      if(statusEl){
+        statusEl.innerHTML = '<span style="color:var(--green);font-weight:700;font-size:12px">✅ Saved to MongoDB database "patent_data" (table: ' + deptId + ')!</span>';
+        setTimeout(() => { if(statusEl) statusEl.innerHTML = ''; }, 3000);
+      }
+
+      ['pat-app-no', 'pat-inventor', 'pat-title', 'pat-filed-date', 'pat-pub-granted-date', 'pat-pub-granted-no', 'pat-proof'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.value = '';
+      });
+
+      if(CURRENT_PAGE === 'ipr-dept') renderIPRDeptPage();
+      else if(CURRENT_PAGE === 'rpc-dept'){
+        const container = document.getElementById('rpc-ipr');
+        if(container) container.innerHTML = renderIPRBlock(deptId);
+      }
+    }
+  } catch(e){
+    if(statusEl) statusEl.innerHTML = '<span style="color:var(--red);font-weight:700;font-size:12px">⚠️ Failed to save patent to DB</span>';
+  }
+}
+
+async function saveAllPatents(deptId){
+  const currentList = (window.PATENTS_CACHE && window.PATENTS_CACHE[deptId]) || (S.patents && S.patents[deptId]) || [];
+
+  currentList.forEach(p => {
+    const sl = p.sl_no;
+    const appEl = document.getElementById(`pat-row-app-${sl}`);
+    if(appEl) p.app_no = appEl.value.trim();
+    const stEl = document.getElementById(`pat-row-status-${sl}`);
+    if(stEl) p.status = stEl.value;
+    const invEl = document.getElementById(`pat-row-inv-${sl}`);
+    if(invEl) p.inventor_name = invEl.value.trim();
+    const titleEl = document.getElementById(`pat-row-title-${sl}`);
+    if(titleEl) p.title = titleEl.value.trim();
+    const applEl = document.getElementById(`pat-row-appl-${sl}`);
+    if(applEl) p.applicant_name = applEl.value.trim();
+    const filedEl = document.getElementById(`pat-row-filed-${sl}`);
+    if(filedEl) p.filed_date = filedEl.value.trim();
+    const pgEl = document.getElementById(`pat-row-pg-${sl}`);
+    if(pgEl) p.pub_granted_date = pgEl.value.trim();
+    const noEl = document.getElementById(`pat-row-no-${sl}`);
+    if(noEl) p.pub_granted_no = noEl.value.trim();
+    const assEl = document.getElementById(`pat-row-ass-${sl}`);
+    if(assEl) p.assignee_name = assEl.value.trim();
+    const proofEl = document.getElementById(`pat-row-proof-${sl}`);
+    if(proofEl) p.source_proof = proofEl.value.trim();
+  });
+
+  const statusEl = document.getElementById('patent-table-save-status');
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/patents/${deptId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ patents: currentList })
+    });
+    const resJson = await res.json();
+    if(res.ok && resJson.success){
+      window.PATENTS_CACHE[deptId] = resJson.data;
+      if(!S.patents) S.patents = {};
+      S.patents[deptId] = resJson.data;
+
+      if(statusEl){
+        statusEl.innerHTML = `<span style="color:var(--green);font-size:12px;font-weight:700">✅ Saved ${currentList.length} patent records to MongoDB database "patent_data" (table: ${deptId})!</span>`;
+        setTimeout(() => { if(statusEl) statusEl.innerHTML = ''; }, 3500);
+      }
+      updatePatentFilterDropdownOptions(deptId);
+    }
+  } catch(e){
+    if(statusEl) statusEl.innerHTML = `<span style="color:var(--red);font-size:12px;font-weight:700">⚠️ Error saving patents: ${e.message}</span>`;
+  }
+}
+
+async function deletePatentRow(deptId, slNo){
+  if(!confirm(`Delete patent record #${slNo}?`)) return;
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/patents/${deptId}/row/${slNo}`, { method: 'DELETE' });
+    const resJson = await res.json();
+    if(res.ok && resJson.success){
+      window.PATENTS_CACHE[deptId] = resJson.data;
+      if(!S.patents) S.patents = {};
+      S.patents[deptId] = resJson.data;
+
+      if(CURRENT_PAGE === 'ipr-dept') renderIPRDeptPage();
+      else if(CURRENT_PAGE === 'rpc-dept'){
+        const container = document.getElementById('rpc-ipr');
+        if(container) container.innerHTML = renderIPRBlock(deptId);
+      }
+    }
+  } catch(e){}
+}
+
+async function clearDepartmentPatents(deptId){
+  if(!confirm(`Clear ALL patent records for department "${deptId}"? This cannot be undone.`)) return;
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') ? '' : 'http://localhost:5000';
+    await fetch(`${apiBase}/api/patents/${deptId}`, { method: 'DELETE' });
+    window.PATENTS_CACHE[deptId] = [];
+    if(!S.patents) S.patents = {};
+    S.patents[deptId] = [];
+    if(window.patentFilters && window.patentFilters[deptId]){
+      window.patentFilters[deptId] = { month: '', faculty: '' };
+    }
+    if(CURRENT_PAGE === 'ipr-dept') renderIPRDeptPage();
+    else if(CURRENT_PAGE === 'rpc-dept'){
+      const container = document.getElementById('rpc-ipr');
+      if(container) container.innerHTML = renderIPRBlock(deptId);
+    }
+  } catch(e){}
+}
+
+function exportPatentsToExcel(deptId){
+  const list = (window.PATENTS_CACHE && window.PATENTS_CACHE[deptId]) || (S.patents && S.patents[deptId]) || [];
+  if(list.length === 0){
+    alert('No patent records to export for this department.');
+    return;
+  }
+  const exportData = list.map(p => ({
+    'Sl. No.': p.sl_no,
+    'Patent Application No.': p.app_no,
+    'Status of Patent (Published / Granted)': p.status,
+    'Inventor/s Name': p.inventor_name,
+    'Title of the Patent': p.title,
+    'Applicant/s Name': p.applicant_name,
+    'Patent Filed Date (DD/MM/YYYY)': p.filed_date,
+    'Patent Published Date / Granted Date (DD/MM/YYYY)': p.pub_granted_date,
+    'Patent Publication Number / Patent Granted Number': p.pub_granted_no,
+    'Assignee/s Name (Institute Affiliation/s at time of Appication)': p.assignee_name,
+    'Here, attach Source Proof Screenshots/URL/ Website Links, etc.': p.source_proof
+  }));
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'IPR_Patents');
+  XLSX.writeFile(wb, `DSATM_${deptId}_IPR_Patents_${Date.now()}.xlsx`);
+}
+
+function selectPatentFilter(deptId, filterType, val){
+  if(!window.patentFilters) window.patentFilters = {};
+  if(!window.patentFilters[deptId]) window.patentFilters[deptId] = { month: '', faculty: '' };
+  window.patentFilters[deptId][filterType] = val;
+  document.querySelectorAll('.pub-dropdown-menu').forEach(m => m.style.display = 'none');
+  applyPatentFilters(deptId);
+}
+
+function clearAllPatentFilters(deptId){
+  if(!window.patentFilters) window.patentFilters = {};
+  window.patentFilters[deptId] = { month: '', faculty: '' };
+  document.querySelectorAll('.pub-dropdown-menu').forEach(m => m.style.display = 'none');
+  applyPatentFilters(deptId);
+}
+
+function updatePatentFilterDropdownOptions(deptId){
+  const patents = (window.PATENTS_CACHE && window.PATENTS_CACHE[deptId]) || (S.patents && S.patents[deptId]) || [];
+  const curMonth = (window.patentFilters && window.patentFilters[deptId]?.month) || '';
+  const curFaculty = (window.patentFilters && window.patentFilters[deptId]?.faculty) || '';
+
+  const monthCounts = {};
+  patents.forEach(p => {
+    let m = (p.pub_month || '').trim();
+    if(!m && p.pub_granted_date){
+      const parts = String(p.pub_granted_date).split(/[\/\-\.]/);
+      if(parts.length === 3){
+        const mIdx = parseInt(parts[1], 10) - 1;
+        const months = ['Jan', 'Feb', 'March', 'April', 'May', 'June', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+        const year = parts[2].length === 2 ? ('20' + parts[2]) : parts[2];
+        if(mIdx >= 0 && mIdx < 12 && year) m = `${months[mIdx]} ${year}`;
+      }
+    }
+    if(m) monthCounts[m] = (monthCounts[m] || 0) + 1;
+  });
+  const distinctMonths = Object.keys(monthCounts).sort();
+
+  const mMenu = document.getElementById('pub-menu-patent-month');
+  if(mMenu){
+    mMenu.innerHTML = `
+      <div class="pub-drop-item ${!curMonth?'active':''}" onclick="selectPatentFilter('${deptId}', 'month', '')">
+        <span>All Months</span>
+        <span class="badge b-pend">${patents.length}</span>
+      </div>
+      ${distinctMonths.map(m => `
+        <div class="pub-drop-item ${(curMonth.toLowerCase()===m.toLowerCase())?'active':''}" onclick="selectPatentFilter('${deptId}', 'month', '${m.replace(/'/g, "\\'")}')">
+          <span>${m}</span>
+          <span class="badge b-info">${monthCounts[m]}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  const facultyCounts = {};
+  patents.forEach(p => {
+    const rawInv = String(p.inventor_name || '').trim();
+    if(rawInv){
+      const names = rawInv.split(/[,&]|\band\b/i).map(n => n.trim()).filter(Boolean);
+      if(names.length > 0){
+        names.forEach(n => { facultyCounts[n] = (facultyCounts[n] || 0) + 1; });
+      } else {
+        facultyCounts[rawInv] = (facultyCounts[rawInv] || 0) + 1;
+      }
+    }
+  });
+  const distinctFaculty = Object.keys(facultyCounts).sort();
+
+  const fMenu = document.getElementById('pub-menu-patent-faculty');
+  if(fMenu){
+    fMenu.innerHTML = `
+      <div class="pub-drop-item ${!curFaculty?'active':''}" onclick="selectPatentFilter('${deptId}', 'faculty', '')">
+        <span>All Faculty</span>
+        <span class="badge b-pend">${patents.length}</span>
+      </div>
+      ${distinctFaculty.map(f => `
+        <div class="pub-drop-item ${(curFaculty.toLowerCase()===f.toLowerCase())?'active':''}" onclick="selectPatentFilter('${deptId}', 'faculty', '${f.replace(/'/g, "\\'")}')">
+          <span>${f}</span>
+          <span class="badge b-info">${facultyCounts[f]}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+}
+
+function applyPatentFilters(deptId){
+  if(!window.patentFilters) window.patentFilters = {};
+  if(!window.patentFilters[deptId]) window.patentFilters[deptId] = { month: '', faculty: '' };
+
+  const curMonth = window.patentFilters[deptId].month || '';
+  const curFaculty = window.patentFilters[deptId].faculty || '';
+  const patents = (window.PATENTS_CACHE && window.PATENTS_CACHE[deptId]) || (S.patents && S.patents[deptId]) || [];
+
+  const filtered = patents.filter(p => {
+    let m = (p.pub_month || '').trim();
+    if(!m && p.pub_granted_date){
+      const parts = String(p.pub_granted_date).split(/[\/\-\.]/);
+      if(parts.length === 3){
+        const mIdx = parseInt(parts[1], 10) - 1;
+        const months = ['Jan', 'Feb', 'March', 'April', 'May', 'June', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+        const year = parts[2].length === 2 ? ('20' + parts[2]) : parts[2];
+        if(mIdx >= 0 && mIdx < 12 && year) m = `${months[mIdx]} ${year}`;
+      }
+    }
+    const mMatch = !curMonth || m.toLowerCase() === curMonth.toLowerCase();
+    const fMatch = !curFaculty || (p.inventor_name || '').toLowerCase().includes(curFaculty.toLowerCase());
+    return mMatch && fMatch;
+  });
+
+  // Update Month button
+  const mBtnLbl = document.getElementById('pub-btn-patent-month-lbl');
+  if(mBtnLbl) mBtnLbl.textContent = curMonth ? curMonth : 'All Months';
+  const mBtn = document.getElementById('pub-btn-patent-month');
+  if(mBtn){
+    if(curMonth){
+      mBtn.style.background = '#eff6ff';
+      mBtn.style.borderColor = 'var(--blue)';
+      mBtn.style.color = 'var(--blue)';
+    } else {
+      mBtn.style.background = '#fff';
+      mBtn.style.borderColor = 'var(--g300)';
+      mBtn.style.color = 'var(--g700)';
+    }
+  }
+
+  // Update Faculty button
+  const fBtnLbl = document.getElementById('pub-btn-patent-faculty-lbl');
+  if(fBtnLbl) fBtnLbl.textContent = curFaculty ? curFaculty : 'All Faculty';
+  const fBtn = document.getElementById('pub-btn-patent-faculty');
+  if(fBtn){
+    if(curFaculty){
+      fBtn.style.background = '#eff6ff';
+      fBtn.style.borderColor = 'var(--blue)';
+      fBtn.style.color = 'var(--blue)';
+    } else {
+      fBtn.style.background = '#fff';
+      fBtn.style.borderColor = 'var(--g300)';
+      fBtn.style.color = 'var(--g700)';
+    }
+  }
+
+  // Update Clear button
+  const clearBtn = document.getElementById('pub-btn-patent-clear');
+  if(clearBtn) clearBtn.style.display = (curMonth || curFaculty) ? 'inline-flex' : 'none';
+
+  // Update summary badge
+  const countBadge = document.getElementById('pub-filter-patent-count-badge');
+  if(countBadge){
+    countBadge.innerHTML = (curMonth || curFaculty)
+      ? `Showing <b style="color:var(--navy)">${filtered.length}</b> of <b>${patents.length}</b> patents`
+      : `Showing all <b style="color:var(--navy)">${patents.length}</b> patents`;
+  }
+
+  const topBadge = document.getElementById('patent-badge-count');
+  if(topBadge){
+    topBadge.textContent = (curMonth || curFaculty)
+      ? `${filtered.length} of ${patents.length} Records (Filtered)`
+      : `${patents.length} Records`;
+  }
+
+  // Update table rows
+  const tbody = document.getElementById('patent-table-body');
+  if(tbody) tbody.innerHTML = renderPatentTableRows(filtered, deptId);
+
+  // Update active state in menu items
+  updatePatentFilterDropdownOptions(deptId);
+}
+
+function renderPatentTableRows(patents, deptId){
+  if(!patents || patents.length === 0){
+    return `<tr><td colspan="12" style="text-align:center;padding:32px 20px;color:var(--g500);font-size:13px">
+      <div style="font-size:26px;margin-bottom:6px">🔍</div>
+      <b>No patent records match the current criteria.</b><br>
+      <span style="font-size:12px;color:var(--g400)">Try selecting another month/faculty or reset the filters above.</span>
+      <div style="margin-top:10px"><button class="btn btn-out btn-xs" onclick="clearAllPatentFilters('${deptId}')">✕ Clear Filters</button></div>
+    </td></tr>`;
+  }
+
+  return patents.map((p, i) => {
+    const sl = p.sl_no || (i + 1);
+    const isGranted = (p.status || '').toLowerCase() === 'granted';
+    const statusCol = isGranted ? '#059669' : '#0891b2';
+    const statusBg = isGranted ? '#ecfdf5' : '#ecfeff';
+    const proofClean = String(p.source_proof || '').trim();
+    const proofHref = proofClean ? (proofClean.startsWith('http') ? proofClean : `https://${proofClean}`) : '';
+
+    return `
+      <tr id="pat-row-${sl}">
+        <td><input type="number" class="inp" id="pat-row-sl-${sl}" value="${sl}" min="1" style="width:48px;text-align:center;padding:4px" onchange="updatePatentMemoryField('${deptId}', ${sl}, 'sl_no', Number(this.value))"></td>
+        <td><input type="text" class="inp" id="pat-row-app-${sl}" value="${(p.app_no||'').replace(/"/g, '&quot;')}" style="min-width:130px;font-family:monospace;font-weight:700" onchange="updatePatentMemoryField('${deptId}', ${sl}, 'app_no', this.value)"></td>
+        <td>
+          <select class="inp" id="pat-row-status-${sl}" style="min-width:105px;font-weight:800;color:${statusCol};background:${statusBg}" onchange="this.style.color=(this.value==='Granted'?'#059669':'#0891b2');this.style.background=(this.value==='Granted'?'#ecfdf5':'#ecfeff');updatePatentMemoryField('${deptId}', ${sl}, 'status', this.value)">
+            <option value="Published" ${!isGranted ? 'selected' : ''}>Published</option>
+            <option value="Granted" ${isGranted ? 'selected' : ''}>Granted</option>
+          </select>
+        </td>
+        <td><input type="text" class="inp" id="pat-row-inv-${sl}" value="${(p.inventor_name||'').replace(/"/g, '&quot;')}" style="min-width:160px;font-weight:700" onchange="updatePatentMemoryField('${deptId}', ${sl}, 'inventor_name', this.value)"></td>
+        <td><input type="text" class="inp" id="pat-row-title-${sl}" value="${(p.title||'').replace(/"/g, '&quot;')}" style="min-width:240px" onchange="updatePatentMemoryField('${deptId}', ${sl}, 'title', this.value)"></td>
+        <td><input type="text" class="inp" id="pat-row-appl-${sl}" value="${(p.applicant_name||'').replace(/"/g, '&quot;')}" style="min-width:180px" onchange="updatePatentMemoryField('${deptId}', ${sl}, 'applicant_name', this.value)"></td>
+        <td><input type="text" class="inp" id="pat-row-filed-${sl}" value="${(p.filed_date||'').replace(/"/g, '&quot;')}" style="width:110px;text-align:center" placeholder="DD/MM/YYYY" onchange="updatePatentMemoryField('${deptId}', ${sl}, 'filed_date', this.value)"></td>
+        <td><input type="text" class="inp" id="pat-row-pg-${sl}" value="${(p.pub_granted_date||'').replace(/"/g, '&quot;')}" style="width:110px;text-align:center" placeholder="DD/MM/YYYY" onchange="updatePatentMemoryField('${deptId}', ${sl}, 'pub_granted_date', this.value)"></td>
+        <td><input type="text" class="inp" id="pat-row-no-${sl}" value="${(p.pub_granted_no||'').replace(/"/g, '&quot;')}" style="min-width:120px;text-align:center;font-family:monospace" placeholder="e.g. 03/2026" onchange="updatePatentMemoryField('${deptId}', ${sl}, 'pub_granted_no', this.value)"></td>
+        <td><input type="text" class="inp" id="pat-row-ass-${sl}" value="${(p.assignee_name||'').replace(/"/g, '&quot;')}" style="min-width:180px" onchange="updatePatentMemoryField('${deptId}', ${sl}, 'assignee_name', this.value)"></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input type="text" class="inp" id="pat-row-proof-${sl}" value="${proofClean.replace(/"/g, '&quot;')}" style="min-width:170px;font-size:11px" placeholder="https://..." onchange="updatePatentMemoryField('${deptId}', ${sl}, 'source_proof', this.value)">
+            ${proofHref ? `<a href="${proofHref}" target="_blank" rel="noopener noreferrer" class="btn btn-out btn-sm" style="padding:4px 7px" title="Open source proof link">🔗</a>` : ''}
+          </div>
+        </td>
+        <td style="text-align:center">
+          <button class="btn btn-red btn-sm" onclick="deletePatentRow('${deptId}', ${sl})" title="Delete row" style="padding:4px 8px">🗑</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function updatePatentMemoryField(deptId, slNo, field, val){
+  const list = (window.PATENTS_CACHE && window.PATENTS_CACHE[deptId]) || (S.patents && S.patents[deptId]);
+  if(!list) return;
+  const item = list.find(p => p.sl_no === slNo);
+  if(item){
+    item[field] = val;
+    if(field === 'pub_granted_date' && val){
+      const parts = String(val).split(/[\/\-\.]/);
+      if(parts.length === 3){
+        const mIdx = parseInt(parts[1], 10) - 1;
+        const months = ['Jan', 'Feb', 'March', 'April', 'May', 'June', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+        const year = parts[2].length === 2 ? ('20' + parts[2]) : parts[2];
+        if(mIdx >= 0 && mIdx < 12 && year) item.pub_month = `${months[mIdx]} ${year}`;
+      }
+    }
+  }
+}
+
+function renderIPRBlock(deptId){
+  if(!window.PATENTS_CACHE) window.PATENTS_CACHE = {};
+  if(!window.PATENTS_CACHE[deptId]) {
+    fetchDepartmentPatentsFromDB(deptId).then(data => {
+      if(data && (CURRENT_PAGE === 'ipr-dept' || CURRENT_PAGE === 'rpc-dept')){
+        if(CURRENT_PAGE === 'ipr-dept') renderIPRDeptPage();
+        else {
+          const container = document.getElementById('rpc-ipr');
+          if(container) container.innerHTML = renderIPRBlock(deptId);
+        }
+      }
+    });
+  }
+
+  const patents = (window.PATENTS_CACHE && window.PATENTS_CACHE[deptId]) || (S.patents && S.patents[deptId]) || [];
+  const publishedCount = patents.filter(p => (p.status||'').toLowerCase() === 'published').length;
+  const grantedCount = patents.filter(p => (p.status||'').toLowerCase() === 'granted').length;
+
+  if(!window.patentFilters) window.patentFilters = {};
+  if(!window.patentFilters[deptId]) window.patentFilters[deptId] = { month: '', faculty: '' };
+  const curMonth = window.patentFilters[deptId].month || '';
+  const curFaculty = window.patentFilters[deptId].faculty || '';
+
+  const monthCounts = {};
+  patents.forEach(p => {
+    let m = (p.pub_month || '').trim();
+    if(!m && p.pub_granted_date){
+      const parts = String(p.pub_granted_date).split(/[\/\-\.]/);
+      if(parts.length === 3){
+        const mIdx = parseInt(parts[1], 10) - 1;
+        const months = ['Jan', 'Feb', 'March', 'April', 'May', 'June', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+        const year = parts[2].length === 2 ? ('20' + parts[2]) : parts[2];
+        if(mIdx >= 0 && mIdx < 12 && year) m = `${months[mIdx]} ${year}`;
+      }
+    }
+    if(m) monthCounts[m] = (monthCounts[m] || 0) + 1;
+  });
+  const distinctMonths = Object.keys(monthCounts).sort();
+
+  const facultyCounts = {};
+  patents.forEach(p => {
+    const rawInv = String(p.inventor_name || '').trim();
+    if(rawInv){
+      const names = rawInv.split(/[,&]|\band\b/i).map(n => n.trim()).filter(Boolean);
+      if(names.length > 0){
+        names.forEach(n => { facultyCounts[n] = (facultyCounts[n] || 0) + 1; });
+      } else {
+        facultyCounts[rawInv] = (facultyCounts[rawInv] || 0) + 1;
+      }
+    }
+  });
+  const distinctFaculty = Object.keys(facultyCounts).sort();
+
+  const filteredPatents = patents.filter(p => {
+    let m = (p.pub_month || '').trim();
+    if(!m && p.pub_granted_date){
+      const parts = String(p.pub_granted_date).split(/[\/\-\.]/);
+      if(parts.length === 3){
+        const mIdx = parseInt(parts[1], 10) - 1;
+        const months = ['Jan', 'Feb', 'March', 'April', 'May', 'June', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+        const year = parts[2].length === 2 ? ('20' + parts[2]) : parts[2];
+        if(mIdx >= 0 && mIdx < 12 && year) m = `${months[mIdx]} ${year}`;
+      }
+    }
+    const mMatch = !curMonth || m.toLowerCase() === curMonth.toLowerCase();
+    const fMatch = !curFaculty || (p.inventor_name || '').toLowerCase().includes(curFaculty.toLowerCase());
+    return mMatch && fMatch;
+  });
+
+  return `
+    <!-- 2 Requested KPI Cards + Total Patents -->
+    <div class="mcg" style="margin-bottom:18px">
+      <div class="mc tel">
+        <div class="mlbl">1. Number of Patents Published</div>
+        <div class="mval" id="kpi-patent-published">${publishedCount}</div>
+        <div class="msub">Published in Official Patent Journal</div>
+      </div>
+      <div class="mc grn">
+        <div class="mlbl">2. Number of Patents Granted</div>
+        <div class="mval" id="kpi-patent-granted">${grantedCount}</div>
+        <div class="msub">Awarded Patent Rights Granted</div>
+      </div>
+      <div class="mc ppl">
+        <div class="mlbl">Total Patents Tracked</div>
+        <div class="mval" id="kpi-patent-total">${patents.length}</div>
+        <div class="msub">Department "${deptId}" in Database "patent_data"</div>
+      </div>
+    </div>
+
+    <!-- Upload and Manual Entry Side-by-Side Cards -->
+    <div class="g2 mb4">
+      <!-- Method 1: Excel Upload -->
+      <div class="card">
+        <div class="ch">
+          <h3>Method 1 — Excel Upload (ETL Pipeline)</h3>
+          <button class="btn btn-out btn-sm" onclick="downloadPatentSample()">⬇ Sample Excel</button>
+        </div>
+        <div class="cb">
+          <div class="alt alt-i" style="margin-bottom:12px;font-size:11.5px;word-break:break-word">
+            <b>Required Columns:</b> Sl. No. | Patent Application No. | Status of Patent (Published / Granted) | Inventor/s Name | Title of the Patent | Applicant/s Name | Patent Filed Date (DD/MM/YYYY) | Patent Published Date / Granted Date (DD/MM/YYYY) | Patent Publication Number / Patent Granted Number | Assignee/s Name (Institute Affiliation/s at time of Appication) | Here, attach Source Proof Screenshots/URL/ Website Links, etc.
+          </div>
+          <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--g300);border-radius:var(--r);padding:24px;cursor:pointer;transition:.15s;background:var(--white)"
+            onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--sky)'"
+            onmouseout="this.style.borderColor='var(--g300)';this.style.background='var(--white)'">
+            <div style="font-size:32px">📑</div>
+            <p style="font-size:13px;font-weight:700;color:var(--navy);margin-top:8px">Click to upload IPR &amp; Patent Excel (.xlsx, .xls)</p>
+            <p style="font-size:11px;color:var(--g400);margin-top:4px">ETL pipeline will process and save records into MongoDB database "patent_data" (table: ${deptId})</p>
+            <input type="file" accept=".xlsx,.xls" style="display:none" onchange="uploadPatentExcel(this, '${deptId}')">
+          </label>
+          <div id="patent-xl-status" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- Method 2: Manual Entry -->
+      <div class="card">
+        <div class="ch"><h3>Method 2 — Manual Entry</h3></div>
+        <div class="cb">
+          <div class="frow fc2">
+            <div class="fl"><label class="req">Patent Application No.</label><input type="text" id="pat-app-no" class="inp" placeholder="e.g. 202641001245"></div>
+            <div class="fl"><label class="req">Status of Patent</label>
+              <select id="pat-status" class="inp">
+                <option value="Published" selected>Published</option>
+                <option value="Granted">Granted</option>
+              </select>
+            </div>
+            <div class="fl"><label class="req">Inventor/s Name</label><input type="text" id="pat-inventor" class="inp" placeholder="e.g. Dr. Chitra K, Dr. Ravi Kumar S"></div>
+            <div class="fl"><label class="req">Title of the Patent</label><input type="text" id="pat-title" class="inp" placeholder="Full title of the patent"></div>
+            <div class="fl"><label>Applicant/s Name</label><input type="text" id="pat-applicant" class="inp" value="Dayananda Sagar Academy of Technology and Management"></div>
+            <div class="fl"><label>Patent Filed Date</label><input type="text" id="pat-filed-date" class="inp" placeholder="DD/MM/YYYY"></div>
+            <div class="fl"><label>Published / Granted Date</label><input type="text" id="pat-pub-granted-date" class="inp" placeholder="DD/MM/YYYY"></div>
+            <div class="fl"><label>Publication / Granted No.</label><input type="text" id="pat-pub-granted-no" class="inp" placeholder="e.g. 03/2026 or IN 524108"></div>
+            <div class="fl" style="grid-column:span 2"><label>Assignee/s Name</label><input type="text" id="pat-assignee" class="inp" value="Dayananda Sagar Academy of Technology and Management, Bangalore"></div>
+            <div class="fl" style="grid-column:span 2"><label>Source Proof URL / Link</label><input type="text" id="pat-proof" class="inp" placeholder="https://ipindiaservices.gov.in/..."></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+            <button class="btn btn-pri" onclick="addManualPatent('${deptId}')">+ Add Patent Record</button>
+            <span id="pat-manual-status"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Editable Patent Table Card -->
+    <div class="card" style="width:100%;max-width:100%">
+      <div class="ch">
+        <div style="display:flex;align-items:center;gap:10px">
+          <h3>IPR &amp; Patents Table (Editable)</h3>
+          <span class="badge ${(curMonth||curFaculty)?'b-info':'b-done'}" id="patent-badge-count">
+            ${(curMonth||curFaculty) ? `${filteredPatents.length} of ${patents.length} Records (Filtered)` : `${patents.length} Records`}
+          </span>
+        </div>
+        <div class="flex gap2">
+          <button class="btn btn-out btn-sm" onclick="exportPatentsToExcel('${deptId}')">⬇ Export Excel</button>
+          <button class="btn btn-pri btn-sm" onclick="saveAllPatents('${deptId}')">💾 Save Table to DB</button>
+          <button class="btn btn-red btn-sm" onclick="clearDepartmentPatents('${deptId}')">🗑 Clear All</button>
+        </div>
+      </div>
+
+      <!-- Filter Toolbar: Month & Faculty Name Dropdowns -->
+      <div style="padding:12px 18px;background:var(--g50);border-bottom:1px solid var(--g200);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:800;color:var(--navy);display:flex;align-items:center;gap:5px">
+            <span style="font-size:14px">⚡</span> Filter Patents:
+          </span>
+
+          <!-- Month Filter Dropdown Button -->
+          <div class="pub-dropdown">
+            <button type="button" class="btn btn-out btn-sm" id="pub-btn-patent-month" onclick="togglePubDropdown('pub-menu-patent-month')" style="display:flex;align-items:center;gap:6px;font-weight:700;${curMonth ? 'background:#eff6ff;border-color:var(--blue);color:var(--blue);' : 'background:#fff;'}min-width:150px;justify-content:space-between">
+              <span>📅 <span id="pub-btn-patent-month-lbl">${curMonth ? curMonth : 'All Months'}</span></span>
+              <span style="font-size:9px;opacity:.6">▼</span>
+            </button>
+            <div id="pub-menu-patent-month" class="pub-dropdown-menu">
+              <div class="pub-drop-item ${!curMonth?'active':''}" onclick="selectPatentFilter('${deptId}', 'month', '')">
+                <span>All Months</span>
+                <span class="badge b-pend">${patents.length}</span>
+              </div>
+              ${distinctMonths.map(m => `
+                <div class="pub-drop-item ${(curMonth.toLowerCase()===m.toLowerCase())?'active':''}" onclick="selectPatentFilter('${deptId}', 'month', '${m.replace(/'/g, "\\'")}')">
+                  <span>${m}</span>
+                  <span class="badge b-info">${monthCounts[m]}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Faculty Name Filter Dropdown Button -->
+          <div class="pub-dropdown">
+            <button type="button" class="btn btn-out btn-sm" id="pub-btn-patent-faculty" onclick="togglePubDropdown('pub-menu-patent-faculty')" style="display:flex;align-items:center;gap:6px;font-weight:700;${curFaculty ? 'background:#eff6ff;border-color:var(--blue);color:var(--blue);' : 'background:#fff;'}min-width:170px;justify-content:space-between">
+              <span>👤 <span id="pub-btn-patent-faculty-lbl">${curFaculty ? curFaculty : 'All Faculty'}</span></span>
+              <span style="font-size:9px;opacity:.6">▼</span>
+            </button>
+            <div id="pub-menu-patent-faculty" class="pub-dropdown-menu">
+              <div class="pub-drop-item ${!curFaculty?'active':''}" onclick="selectPatentFilter('${deptId}', 'faculty', '')">
+                <span>All Faculty</span>
+                <span class="badge b-pend">${patents.length}</span>
+              </div>
+              ${distinctFaculty.map(f => `
+                <div class="pub-drop-item ${(curFaculty.toLowerCase()===f.toLowerCase())?'active':''}" onclick="selectPatentFilter('${deptId}', 'faculty', '${f.replace(/'/g, "\\'")}')">
+                  <span>${f}</span>
+                  <span class="badge b-info">${facultyCounts[f]}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Clear Filters Button -->
+          <button id="pub-btn-patent-clear" class="btn btn-out btn-sm" onclick="clearAllPatentFilters('${deptId}')" style="display:${(curMonth || curFaculty)?'inline-flex':'none'};align-items:center;gap:4px;color:var(--red);border-color:var(--red-light);background:#fff1f2">
+            ✕ Reset Filters
+          </button>
+        </div>
+
+        <div id="pub-filter-patent-count-badge" style="font-size:12px;color:var(--g600);font-weight:600">
+          ${(curMonth || curFaculty)
+            ? `Showing <b style="color:var(--navy)">${filteredPatents.length}</b> of <b>${patents.length}</b> patents`
+            : `Showing all <b style="color:var(--navy)">${patents.length}</b> patents`}
+        </div>
+      </div>
+
+      <div class="cb">
+        <div class="alt alt-i" style="margin-bottom:12px">
+          All cells in the table below are editable. Make modifications directly in the fields and click <b>Save Table to DB</b> to persist updates to MongoDB table "<code>${deptId}</code>" in database "<code>patent_data</code>".
+        </div>
+        <div class="tw">
+          <table style="min-width:1400px">
+            <thead>
+              <tr>
+                <th style="width:55px">Sl. No.</th>
+                <th>Patent Application No.</th>
+                <th>Status of Patent (Published / Granted)</th>
+                <th>Inventor/s Name</th>
+                <th>Title of the Patent</th>
+                <th>Applicant/s Name</th>
+                <th>Patent Filed Date (DD/MM/YYYY)</th>
+                <th>Patent Published Date / Granted Date (DD/MM/YYYY)</th>
+                <th>Patent Publication Number / Patent Granted Number</th>
+                <th>Assignee/s Name (Institute Affiliation/s at time of Appication)</th>
+                <th>Here, attach Source Proof Screenshots/URL/ Website Links, etc.</th>
+                <th style="width:65px">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="patent-table-body">
+              ${renderPatentTableRows(filteredPatents, deptId)}
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn btn-pri" onclick="saveAllPatents('${deptId}')">💾 Save Table to DB</button>
+            <span id="patent-table-save-status"></span>
+          </div>
+          <div style="font-size:12px;color:var(--g500)">
+            Department: <b>${deptId}</b> &nbsp;|&nbsp; Total Records: <b>${patents.length}</b>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderIPRDeptPage(){
+  const id=CU.deptId;
+  const dept=DEPTS.find(d=>d.id===id);
+  document.getElementById('tb-title').textContent='IPR & Patents — '+dept.short;
+  document.getElementById('mc').innerHTML=
+    '<div class="bc">Dashboard <span>›</span> IPR &amp; Patents</div>'
+    +'<div class="stitle">IPR &amp; Patents — '+dept.name+'</div>'
+    +'<div class="ssub">Department-wise Intellectual Property Rights and Patent Tracking</div>'
+    +renderIPRBlock(id);
 }
 
 // ══════════════════════════════════════════════════
@@ -3351,23 +4955,9 @@ function renderRPCDept(){
       </div></div>
     </div>
 
-    <!-- ── C. IPR ── -->
+    <!-- ── C. IPR & Patents ── -->
     <div class="tbc" id="rpc-ipr">
-      <div class="card"><div class="ch"><h3>C. IPR and Patents — IPR (15 marks) · ${cycLbl}</h3></div><div class="cb">
-        <div class="alt alt-i">IPG = 10 × 0.014 × (PG) &nbsp;|&nbsp; IPP = 5 × 0.029 × (PP) &nbsp;|&nbsp; IPR = 0.0126080692 × (IPG + IPP)</div>
-        ${ywInputTable(
-          `Patents Published (PP) — Years: ${pp_yrs.join(' + ')}`,
-          [['patents_published','No. of Patents Published']],
-          pp_yrs
-        )}
-        ${ywInputTable(
-          `Patents Granted (PG) — Years: ${pg_yrs.join(' + ')}`,
-          [['patents_granted','No. of Patents Granted']],
-          pg_yrs,
-          (S.nirfCycle||'2027')==='2027'?'Note (NIRF 2027): PG uses the previous 3-year window (2024+2023+2022) per RPP.docx':''
-        )}
-        <button class="btn btn-pri" style="margin-top:12px" onclick="saveRPC()">Save &amp; Calculate</button>
-      </div></div>
+      ${renderIPRBlock(id)}
     </div>
 
     <!-- ── D. FPPP ── -->
@@ -3493,36 +5083,101 @@ function updateRPCCalc(){
 }
 
 // ══════════════════════════════════════════════════
-// GO DEPT — from provided formula exactly
+// GO DEPT — MongoDB "go_data" integration
 // ══════════════════════════════════════════════════
-function renderGODept(){
+async function fetchDepartmentGOFromDB(deptId){
+  if(!deptId) return null;
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/go/${deptId}?_t=${Date.now()}`, { cache: 'no-cache' });
+    if(!res.ok) return null;
+    const json = await res.json();
+    if(json.success && json.data){
+      if(!S.go) S.go = {};
+      const d = json.data;
+      S.go[deptId] = {
+        ug: Array.isArray(d.ug) ? d.ug : [],
+        pg: Array.isArray(d.pg) ? d.pg : [],
+        phd_full: Number(d.phd_full || 0),
+        phd_part: Number(d.phd_part || 0)
+      };
+      save();
+      return S.go[deptId];
+    }
+  } catch(e){
+    // Network / backend offline fallback
+  }
+  return null;
+}
+
+function renderGODept(activeTabId, skipFetch){
   const id=CU.deptId;const dept=DEPTS.find(d=>d.id===id);
   document.getElementById('tb-title').textContent='GO — '+dept.short;
+  if(!S.go) S.go={};
+  if(!S.go[id]) S.go[id]={ug:[],pg:[],phd_full:0,phd_part:0};
+
+  // Always fetch fresh GO data from MongoDB database asynchronously in the background
+  if(!skipFetch){
+    fetchDepartmentGOFromDB(id).then(data => {
+      if(data && CURRENT_PAGE === 'go-dept'){
+        const currentActiveTab = document.querySelector('.tabs .tab.active')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1] || activeTabId || 'go-ug';
+        renderGODept(currentActiveTab, true);
+      }
+    });
+  }
+
+  const activeTab = activeTabId || 'go-ug';
   const gd=S.go[id];const c=calcGO(id);
   document.getElementById('mc').innerHTML=`
     <div class="bc">Dashboard <span>›</span> GO</div>
     <div class="flex ic jb mb4">
-      <div><div class="stitle">Graduation Outcomes (GO)</div></div>
+      <div>
+        <div class="stitle">Graduation Outcomes (GO) — ${dept.name} (${id})</div>
+        <div class="ssub">Connected to MongoDB database "go_data" (table: ${id}) &nbsp;|&nbsp; GPH=40 | GUE=15 | GMS=25 | GPHD=20 → Total: 100</div>
+      </div>
       <button class="btn btn-red btn-sm" onclick="clearGOData()">🗑 Clear All GO Data</button>
     </div>
-    <div class="ssub">GPH=40 | GUE=15 | GMS=25 | GPHD=20 → Total: 100</div>
-    <div class="sring">
-      <div><div class="big">${c.GO.toFixed(2)}</div><div class="slbl">GO Score (out of 100)</div></div>
+    <div class="sring" style="margin-bottom:14px">
+      <div><div class="big" id="go-score-big">${c.GO.toFixed(2)}</div><div class="slbl">GO Score (out of 100)</div></div>
       <div style="flex:1">
-        <div class="pb" style="height:14px"><div class="pf pf-g" style="width:${Math.min(c.GO,100).toFixed(0)}%"></div></div>
-        <div style="font-size:11px;opacity:.55;margin-top:5px">GPH: ${c.GPH.toFixed(2)} &nbsp;|&nbsp; GUE: ${c.GUE.toFixed(2)} &nbsp;|&nbsp; GMS: ${c.GMS.toFixed(2)} &nbsp;|&nbsp; GPHD: ${c.GPHD.toFixed(2)}</div>
+        <div class="pb" style="height:14px"><div class="pf pf-g" id="go-score-pf" style="width:${Math.min(c.GO,100).toFixed(0)}%"></div></div>
+        <div style="font-size:12px;opacity:.75;margin-top:6px;font-weight:600">Weight: 20% | Total GO = GPH (40) + GUE (15) + GMS (25) + GPHD (20)</div>
+      </div>
+    </div>
+    <div class="mcg" style="margin-bottom:18px">
+      <div class="mc tel">
+        <div class="mlbl">GPH — Placement &amp; Higher Studies</div>
+        <div class="mval" id="kpi-gph">${c.GPH.toFixed(2)}</div>
+        <div class="msub" id="kpi-gph-sub">Max: 40 | Placed: ${c.total_placed} (${c.Np.toFixed(1)}%) | Higher: ${c.total_higher} (${c.Nhs.toFixed(1)}%)</div>
+      </div>
+      <div class="mc ppl">
+        <div class="mlbl">GUE — University Examinations</div>
+        <div class="mval" id="kpi-gue">${c.GUE.toFixed(2)}</div>
+        <div class="msub" id="kpi-gue-sub">Max: 15 | Graduated: ${c.total_graduated} (${c.Ng.toFixed(1)}%)</div>
+      </div>
+      <div class="mc gld">
+        <div class="mlbl">GMS — Median Salary</div>
+        <div class="mval" id="kpi-gms">${c.GMS.toFixed(2)}</div>
+        <div class="msub" id="kpi-gms-sub">Max: 25 | Avg Median: ₹${(c.avg_median_salary||0).toLocaleString('en-IN')}</div>
+      </div>
+      <div class="mc grn">
+        <div class="mlbl">GPHD — Ph.D Students Graduated</div>
+        <div class="mval" id="kpi-gphd">${c.GPHD.toFixed(2)}</div>
+        <div class="msub" id="kpi-gphd-sub">Max: 20 | Full-Time: ${c.phd_full} | Part-Time: ${c.phd_part}</div>
       </div>
     </div>
     <div class="tabs">
-      <div class="tab active" onclick="swTab(this,'go-ug')">UG Data (4-Year)</div>
-      <div class="tab" onclick="swTab(this,'go-pg')">PG Data (2-Year)</div>
-      <div class="tab" onclick="swTab(this,'go-phd')">Ph.D</div>
-      <div class="tab" onclick="swTab(this,'go-res')">GO Calculation</div>
+      <div class="tab ${activeTab==='go-ug'?'active':''}" onclick="swTab(this,'go-ug')">UG Data (4-Year)</div>
+      <div class="tab ${activeTab==='go-pg'?'active':''}" onclick="swTab(this,'go-pg')">PG Data (2-Year)</div>
+      <div class="tab ${activeTab==='go-phd'?'active':''}" onclick="swTab(this,'go-phd')">Ph.D</div>
+      <div class="tab ${activeTab==='go-res'?'active':''}" onclick="swTab(this,'go-res')">GO Calculation</div>
     </div>
-    <div class="tbc active" id="go-ug">
-      <div class="card"><div class="ch"><h3>UG [4 Years Program(s)] — Placement &amp; Higher Studies for Previous 3 Years</h3><button class="btn btn-red btn-sm" onclick="clearGOData('ug')">🗑 Clear UG</button></div>
+    <div class="tbc ${activeTab==='go-ug'?'active':''}" id="go-ug">
+      <div class="card"><div class="ch"><h3>UG [4 Years Program(s)] — Placement &amp; Higher Studies for Previous 4 Years</h3><button class="btn btn-red btn-sm" onclick="clearGOData('ug')">🗑 Clear UG</button></div>
         <div class="cb">
-          <div class="alt alt-i">Each row represents one graduating cohort. The three year columns reflect the ${cyc().label} UG table structure from the Word document.</div>
+          <div class="alt alt-i">Each row represents one graduating cohort across 4 years reflecting the ${cyc().label} UG table structure. Values are synced directly with MongoDB database <b>go_data</b> (table: <b>${id}</b>).</div>
           <div class="tw"><table>
             <thead>
               <tr>
@@ -3545,47 +5200,92 @@ function renderGODept(){
               </tr>
             </thead>
             <tbody>
-              ${cyc().UG_ROWS.map(({intakeYr,lateralYr,gradYr},i)=>{
-                const row=(gd?.ug||[])[i]||{intake:0,admitted:0,lateral:0,graduated:0,placed:0,medSalary:0,higher:0};
-                return `<tr>
+              ${(() => {
+                const targetUgGradYears = (S.nirfCycle === '2026')
+                  ? ['2021-22', '2022-23', '2023-24', '2024-25']
+                  : ['2022-23', '2023-24', '2024-25', '2025-26'];
+
+                const ugDisplayRows = targetUgGradYears.map((targetYr) => {
+                  let matched = (gd?.ug || []).find(r => r.year === targetYr || r.gradYr === targetYr);
+                  if(matched){
+                    return {
+                      ...matched,
+                      intakeYr: matched.intakeYr || defaultIntakeYr(targetYr),
+                      lateralYr: matched.lateralYr || defaultLateralYr(targetYr),
+                      year: matched.year || targetYr
+                    };
+                  }
+                  return {
+                    intakeYr: defaultIntakeYr(targetYr),
+                    lateralYr: defaultLateralYr(targetYr),
+                    year: targetYr,
+                    intake: 0,
+                    admitted: 0,
+                    lateral: 0,
+                    graduated: 0,
+                    placed: 0,
+                    medSalary: 0,
+                    higher: 0
+                  };
+                });
+
+                return ugDisplayRows.map((row, i) => `<tr>
                   <td style="text-align:center;font-weight:600;color:var(--navy)">${i+1}</td>
-                  <td style="background:var(--b50,#e8f4fd)"><b>${intakeYr}</b></td>
+                  <td style="background:var(--b50,#e8f4fd)"><input type="text" class="inp" id="ug-${i}-intakeYr" value="${row.intakeYr||''}" onchange="saveGO()" style="width:85px;font-weight:700;text-align:center" title="Intake Academic Year"></td>
                   <td style="background:var(--b50,#e8f4fd)"><input type="number" class="inp" id="ug-${i}-intake" value="${row.intake||0}" min="0" onchange="saveGO()" style="width:80px"></td>
                   <td style="background:var(--b50,#e8f4fd)"><input type="number" class="inp" id="ug-${i}-admitted" value="${row.admitted||0}" min="0" onchange="saveGO()" style="width:80px"></td>
-                  <td style="background:var(--g50,#e8f8ee)"><b>${lateralYr}</b></td>
+                  <td style="background:var(--g50,#e8f8ee)"><input type="text" class="inp" id="ug-${i}-lateralYr" value="${row.lateralYr||''}" onchange="saveGO()" style="width:85px;font-weight:700;text-align:center" title="Lateral Entry Academic Year"></td>
                   <td style="background:var(--g50,#e8f8ee)"><input type="number" class="inp" id="ug-${i}-lateral" value="${row.lateral||0}" min="0" onchange="saveGO()" style="width:80px"></td>
-                  <td style="background:var(--y50,#fdf8e8)"><b>${gradYr}</b></td>
+                  <td style="background:var(--y50,#fdf8e8)"><input type="text" class="inp" id="ug-${i}-gradYr" value="${row.year||''}" onchange="saveGO()" style="width:85px;font-weight:700;text-align:center" title="Graduating Academic Year"></td>
                   <td style="background:var(--y50,#fdf8e8)"><input type="number" class="inp" id="ug-${i}-graduated" value="${row.graduated||0}" min="0" onchange="saveGO()" style="width:80px"></td>
                   <td style="background:var(--y50,#fdf8e8)"><input type="number" class="inp" id="ug-${i}-placed" value="${row.placed||0}" min="0" onchange="saveGO()" style="width:80px"></td>
                   <td style="background:var(--y50,#fdf8e8)"><input type="number" class="inp" id="ug-${i}-medSalary" value="${row.medSalary||0}" min="0" onchange="saveGO()" style="width:110px"></td>
                   <td style="background:var(--y50,#fdf8e8)"><input type="number" class="inp" id="ug-${i}-higher" value="${row.higher||0}" min="0" onchange="saveGO()" style="width:80px"></td>
-                </tr>`;
-              }).join('')}
+                </tr>`).join('');
+              })()}
             </tbody>
           </table></div>
-          <button class="btn btn-pri" style="margin-top:12px" onclick="saveGO()">Save & Calculate</button>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:14px">
+            <button class="btn btn-pri" onclick="saveGO()">💾 Save &amp; Calculate</button>
+            <div id="go-save-status"></div>
+          </div>
         </div>
       </div>
     </div>
-    <div class="tbc" id="go-pg">
+    <div class="tbc ${activeTab==='go-pg'?'active':''}" id="go-pg">
       <div class="card"><div class="ch"><h3>PG [2 Years Program(s)] — Year-wise Data</h3><button class="btn btn-red btn-sm" onclick="clearGOData('pg')">🗑 Clear PG</button></div>
         <div class="cb">
           <div class="tw"><table>
             <thead><tr><th>Year</th><th>Intake</th><th>Admitted</th><th>Graduated</th><th>Placed</th><th>Median Salary (₹)</th><th>Higher Studies</th></tr></thead>
             <tbody>
-              ${(gd?.pg||cyc().PG_GO_YRS.map(y=>({year:y,intake:0,admitted:0,graduated:0,placed:0,medSalary:0,higher:0}))).map((row,i)=>`<tr>
-                <td><b>${row.year}</b></td>
-                ${['intake','admitted','graduated','placed'].map(f=>`<td><input type="number" class="inp" id="pg-${i}-${f}" value="${row[f]||0}" min="0" onchange="saveGO()" style="width:90px"></td>`).join('')}
-                <td><input type="number" class="inp" id="pg-${i}-medSalary" value="${row.medSalary||0}" min="0" onchange="saveGO()" style="width:120px"></td>
-                <td><input type="number" class="inp" id="pg-${i}-higher" value="${row.higher||0}" min="0" onchange="saveGO()" style="width:90px"></td>
-              </tr>`).join('')}
+              ${(() => {
+                const targetPgYears = (S.nirfCycle === '2026')
+                  ? ['2020-21', '2021-22', '2022-23', '2023-24']
+                  : ['2021-22', '2022-23', '2023-24', '2024-25'];
+
+                const pgDisplayRows = targetPgYears.map((targetYr) => {
+                  let matched = (gd?.pg || []).find(r => r.year === targetYr);
+                  if(matched) return matched;
+                  return { year: targetYr, intake: 0, admitted: 0, graduated: 0, placed: 0, medSalary: 0, higher: 0 };
+                });
+
+                return pgDisplayRows.map((row, i) => `<tr>
+                  <td><input type="text" class="inp" id="pg-${i}-year" value="${row.year||''}" onchange="saveGO()" style="width:90px;font-weight:700;text-align:center" title="PG Academic Year"></td>
+                  ${['intake','admitted','graduated','placed'].map(f=>`<td><input type="number" class="inp" id="pg-${i}-${f}" value="${row[f]||0}" min="0" onchange="saveGO()" style="width:90px"></td>`).join('')}
+                  <td><input type="number" class="inp" id="pg-${i}-medSalary" value="${row.medSalary||0}" min="0" onchange="saveGO()" style="width:120px"></td>
+                  <td><input type="number" class="inp" id="pg-${i}-higher" value="${row.higher||0}" min="0" onchange="saveGO()" style="width:90px"></td>
+                </tr>`).join('');
+              })()}
             </tbody>
           </table></div>
-          <button class="btn btn-pri" style="margin-top:12px" onclick="saveGO()">Save & Calculate</button>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:14px">
+            <button class="btn btn-pri" onclick="saveGO()">💾 Save &amp; Calculate</button>
+            <div id="go-save-status-pg"></div>
+          </div>
         </div>
       </div>
     </div>
-    <div class="tbc" id="go-phd">
+    <div class="tbc ${activeTab==='go-phd'?'active':''}" id="go-phd">
       <div class="card"><div class="ch"><h3>Ph.D Students Graduated</h3><button class="btn btn-red btn-sm" onclick="clearGOData('phd')">🗑 Clear Ph.D</button></div>
         <div class="cb">
           <div class="alt alt-i">Enter Full-Time Ph.D Graduated count. Part-time Ph.D is recorded but not included in the GPHD score.</div>
@@ -3599,172 +5299,516 @@ function renderGODept(){
               <div class="hint">Recorded but not counted in GPHD</div>
             </div>
           </div>
-          <button class="btn btn-pri" onclick="saveGO()">Save & Calculate</button>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+            <button class="btn btn-pri" onclick="saveGO()">💾 Save &amp; Calculate</button>
+            <div id="go-save-status-phd"></div>
+          </div>
         </div>
       </div>
     </div>
-    <div class="tbc" id="go-res">
-      <div class="card"><div class="ch"><h3>GO Score — Step-by-step Calculation</h3></div>
-        <div class="cb"><div class="cbox" id="go-calc-box"></div></div>
+    <div class="tbc ${activeTab==='go-res'?'active':''}" id="go-res">
+      <div class="card"><div class="ch"><h3>GO Parameter Breakdown &amp; Calculation</h3></div>
+        <div class="cb">
+          <div class="mcg" style="margin-bottom:16px">
+            <div class="mc tel">
+              <div class="mlbl">GPH Score</div>
+              <div class="mval" id="calc-kpi-gph">${c.GPH.toFixed(2)} / 40</div>
+              <div class="msub" id="calc-kpi-gph-sub">40 × (Np + Nhs)/100</div>
+            </div>
+            <div class="mc ppl">
+              <div class="mlbl">GUE Score</div>
+              <div class="mval" id="calc-kpi-gue">${c.GUE.toFixed(2)} / 15</div>
+              <div class="msub" id="calc-kpi-gue-sub">15 × min(Ng/80, 1)</div>
+            </div>
+            <div class="mc gld">
+              <div class="mlbl">GMS Score</div>
+              <div class="mval" id="calc-kpi-gms">${c.GMS.toFixed(2)} / 25</div>
+              <div class="msub" id="calc-kpi-gms-sub">25 × (Median / 13L)</div>
+            </div>
+            <div class="mc grn">
+              <div class="mlbl">GPHD Score</div>
+              <div class="mval" id="calc-kpi-gphd">${c.GPHD.toFixed(2)} / 20</div>
+              <div class="msub" id="calc-kpi-gphd-sub">20 × min(Nphd/1000, 1)</div>
+            </div>
+          </div>
+          <div class="cbox" id="go-calc-box"></div>
+        </div>
       </div>
     </div>`;
   updateGOCalc();
 }
 
-function saveGO(){
+function defaultIntakeYr(gradYr){
+  const parts = (gradYr||'').split('-');
+  if(parts.length === 2){
+    const end = parseInt(parts[0], 10);
+    if(!isNaN(end)){
+      const start = end - 3;
+      return `${start}-${(start+1).toString().slice(-2)}`;
+    }
+  }
+  return '';
+}
+
+function defaultLateralYr(gradYr){
+  const parts = (gradYr||'').split('-');
+  if(parts.length === 2){
+    const end = parseInt(parts[0], 10);
+    if(!isNaN(end)){
+      const start = end - 2;
+      return `${start}-${(start+1).toString().slice(-2)}`;
+    }
+  }
+  return '';
+}
+
+async function saveGO(){
   const id=CU.deptId;
+  if(!S.go) S.go={};
   if(!S.go[id]) S.go[id]={ug:[],pg:[],phd_full:0,phd_part:0};
-  const ugYears=cycUGYrs();
-  S.go[id].ug=ugYears.map((y,i)=>({
-    year:y,
-    intake:Number(document.getElementById(`ug-${i}-intake`)?.value||0),
-    admitted:Number(document.getElementById(`ug-${i}-admitted`)?.value||0),
-    lateral:Number(document.getElementById(`ug-${i}-lateral`)?.value||0),
-    graduated:Number(document.getElementById(`ug-${i}-graduated`)?.value||0),
-    placed:Number(document.getElementById(`ug-${i}-placed`)?.value||0),
-    medSalary:Number(document.getElementById(`ug-${i}-medSalary`)?.value||0),
-    higher:Number(document.getElementById(`ug-${i}-higher`)?.value||0),
-  }));
-  const pgYears=cyc().PG_GO_YRS;
-  S.go[id].pg=pgYears.map((y,i)=>({
-    year:y,
-    intake:Number(document.getElementById(`pg-${i}-intake`)?.value||0),
-    admitted:Number(document.getElementById(`pg-${i}-admitted`)?.value||0),
-    graduated:Number(document.getElementById(`pg-${i}-graduated`)?.value||0),
-    placed:Number(document.getElementById(`pg-${i}-placed`)?.value||0),
-    medSalary:Number(document.getElementById(`pg-${i}-medSalary`)?.value||0),
-    higher:Number(document.getElementById(`pg-${i}-higher`)?.value||0),
-  }));
-  S.go[id].phd_full=Number(document.getElementById('phd_full')?.value||0);
-  S.go[id].phd_part=Number(document.getElementById('phd_part')?.value||0);
-  save();audit(CU.name,id,'GO','Data updated');
+
+  // Collect all rendered UG rows from DOM
+  const renderedUg = [];
+  let uIdx = 0;
+  while(document.getElementById(`ug-${uIdx}-gradYr`)){
+    const gradYr = document.getElementById(`ug-${uIdx}-gradYr`).value.trim();
+    const intakeYr = document.getElementById(`ug-${uIdx}-intakeYr`)?.value.trim() || defaultIntakeYr(gradYr);
+    const lateralYr = document.getElementById(`ug-${uIdx}-lateralYr`)?.value.trim() || defaultLateralYr(gradYr);
+    if(gradYr){
+      renderedUg.push({
+        intakeYr,
+        lateralYr,
+        year: gradYr,
+        intake: Number(document.getElementById(`ug-${uIdx}-intake`)?.value || 0),
+        admitted: Number(document.getElementById(`ug-${uIdx}-admitted`)?.value || 0),
+        lateral: Number(document.getElementById(`ug-${uIdx}-lateral`)?.value || 0),
+        graduated: Number(document.getElementById(`ug-${uIdx}-graduated`)?.value || 0),
+        placed: Number(document.getElementById(`ug-${uIdx}-placed`)?.value || 0),
+        medSalary: Number(document.getElementById(`ug-${uIdx}-medSalary`)?.value || 0),
+        higher: Number(document.getElementById(`ug-${uIdx}-higher`)?.value || 0),
+      });
+    }
+    uIdx++;
+  }
+
+  // Merge with existing UG cohorts (keeps other cycle years preserved)
+  const existingUgMap = {};
+  (S.go[id].ug || []).forEach(r => { if(r.year) existingUgMap[r.year] = { ...r }; });
+  renderedUg.forEach(r => { existingUgMap[r.year] = r; });
+  S.go[id].ug = Object.values(existingUgMap).sort((a,b) => a.year.localeCompare(b.year));
+
+  // Collect all rendered PG rows from DOM
+  const renderedPg = [];
+  let pIdx = 0;
+  while(document.getElementById(`pg-${pIdx}-year`)){
+    const yr = document.getElementById(`pg-${pIdx}-year`).value.trim();
+    if(yr){
+      renderedPg.push({
+        year: yr,
+        intake: Number(document.getElementById(`pg-${pIdx}-intake`)?.value || 0),
+        admitted: Number(document.getElementById(`pg-${pIdx}-admitted`)?.value || 0),
+        graduated: Number(document.getElementById(`pg-${pIdx}-graduated`)?.value || 0),
+        placed: Number(document.getElementById(`pg-${pIdx}-placed`)?.value || 0),
+        medSalary: Number(document.getElementById(`pg-${pIdx}-medSalary`)?.value || 0),
+        higher: Number(document.getElementById(`pg-${pIdx}-higher`)?.value || 0),
+      });
+    }
+    pIdx++;
+  }
+
+  const existingPgMap = {};
+  (S.go[id].pg || []).forEach(r => { if(r.year) existingPgMap[r.year] = { ...r }; });
+  renderedPg.forEach(r => { existingPgMap[r.year] = r; });
+  S.go[id].pg = Object.values(existingPgMap).sort((a,b) => a.year.localeCompare(b.year));
+
+  const phdFullEl = document.getElementById('phd_full');
+  if(phdFullEl) S.go[id].phd_full = Number(phdFullEl.value || 0);
+  const phdPartEl = document.getElementById('phd_part');
+  if(phdPartEl) S.go[id].phd_part = Number(phdPartEl.value || 0);
+
+  save();
+  audit(CU.name, id, 'GO', 'Data updated and saved to MongoDB go_data');
   updateGOCalc();
+
+  // Save to MongoDB database 'go_data' (table: id)
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/go/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ug: S.go[id].ug,
+        pg: S.go[id].pg,
+        phd_full: S.go[id].phd_full,
+        phd_part: S.go[id].phd_part
+      })
+    });
+    const resJson = await res.json();
+    if(res.ok && resJson.success){
+      ['go-save-status','go-save-status-pg','go-save-status-phd'].forEach(sid=>{
+        const el = document.getElementById(sid);
+        if(el){
+          el.innerHTML = `<span style="color:var(--green);font-size:12px;font-weight:700">✅ Saved to MongoDB database "go_data" (table: ${id})!</span>`;
+          setTimeout(() => { if(el) el.innerHTML = ''; }, 3500);
+        }
+      });
+    }
+  } catch(e){
+    console.warn('Backend GO save warning:', e);
+  }
 }
 
 function updateGOCalc(){
   const id=CU.deptId;const c=calcGO(id);
-  const el=document.getElementById('go-calc-box');if(!el)return;
-  el.innerHTML=`
-    <div class="cs"><span class="cl">Total Intake (UG+PG)</span><span class="cv">${c.total_intake}</span></div>
-    <div class="cs"><span class="cl">Adjusted Intake</span><span class="cv">${c.total_intake1?.toFixed(2)||0}</span></div>
-    <div class="cs"><span class="cl">Total Placed</span><span class="cv">${c.total_placed}</span></div>
-    <div class="cs"><span class="cl">Total Higher Studies</span><span class="cv">${c.total_higher}</span></div>
-    <div class="cs"><span class="cl">Placement % (Np)</span><span class="cv">${c.Np?.toFixed(2)||0}%</span></div>
-    <div class="cs"><span class="cl">Higher Studies % (Nhs)</span><span class="cv">${c.Nhs?.toFixed(2)||0}%</span></div>
-    <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">GPH Score (Max 40)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.GPH.toFixed(4)}</span></div>
-    <div class="cs"><span class="cl">Total Graduated</span><span class="cv">${c.total_graduated}</span></div>
-    <div class="cs"><span class="cl">Graduation % (Ng)</span><span class="cv">${c.Ng?.toFixed(2)||0}%</span></div>
-    <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">GUE Score (Max 15)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.GUE.toFixed(4)}</span></div>
-    <div class="cs"><span class="cl">Average Median Salary</span><span class="cv">₹${(c.avg_median_salary||0).toLocaleString('en-IN')}</span></div>
-    <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">GMS Score (Max 25)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.GMS.toFixed(4)}</span></div>
-    <div class="cs"><span class="cl">Ph.D Graduated (Full-time)</span><span class="cv">${c.phd_full}</span></div>
-    <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">GPHD Score (Max 20)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.GPHD.toFixed(4)}</span></div>
-    <div class="cs"><span class="cl" style="font-weight:900;color:var(--navy);font-size:13px">GO TOTAL</span><span class="cv" style="font-weight:900;color:var(--navy);font-size:13px">${c.GO.toFixed(4)}</span></div>`;
+  const el=document.getElementById('go-calc-box');
+  if(el){
+    el.innerHTML=`
+      <div class="cs"><span class="cl">Total Intake (UG+PG)</span><span class="cv">${c.total_intake}</span></div>
+      <div class="cs"><span class="cl">Adjusted Intake</span><span class="cv">${c.total_intake1?.toFixed(2)||0}</span></div>
+      <div class="cs"><span class="cl">Total Placed</span><span class="cv">${c.total_placed}</span></div>
+      <div class="cs"><span class="cl">Total Higher Studies</span><span class="cv">${c.total_higher}</span></div>
+      <div class="cs"><span class="cl">Placement % (Np)</span><span class="cv">${c.Np?.toFixed(2)||0}%</span></div>
+      <div class="cs"><span class="cl">Higher Studies % (Nhs)</span><span class="cv">${c.Nhs?.toFixed(2)||0}%</span></div>
+      <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">GPH Score (Max 40)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.GPH.toFixed(4)}</span></div>
+      <div class="cs"><span class="cl">Total Graduated</span><span class="cv">${c.total_graduated}</span></div>
+      <div class="cs"><span class="cl">Graduation % (Ng)</span><span class="cv">${c.Ng?.toFixed(2)||0}%</span></div>
+      <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">GUE Score (Max 15)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.GUE.toFixed(4)}</span></div>
+      <div class="cs"><span class="cl">Average Median Salary</span><span class="cv">₹${(c.avg_median_salary||0).toLocaleString('en-IN')}</span></div>
+      <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">GMS Score (Max 25)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.GMS.toFixed(4)}</span></div>
+      <div class="cs"><span class="cl">Ph.D Graduated (Full-time)</span><span class="cv">${c.phd_full}</span></div>
+      <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">GPHD Score (Max 20)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.GPHD.toFixed(4)}</span></div>
+      <div class="cs"><span class="cl" style="font-weight:900;color:var(--navy);font-size:13px">GO TOTAL</span><span class="cv" style="font-weight:900;color:var(--navy);font-size:13px">${c.GO.toFixed(4)}</span></div>`;
+  }
+
+  // Live update main top KPI cards
+  const elBig = document.getElementById('go-score-big');
+  if(elBig) elBig.textContent = c.GO.toFixed(2);
+  const elPf = document.getElementById('go-score-pf');
+  if(elPf) elPf.style.width = Math.min(c.GO, 100).toFixed(0) + '%';
+  const elGph = document.getElementById('kpi-gph');
+  if(elGph) elGph.textContent = c.GPH.toFixed(2);
+  const elGphSub = document.getElementById('kpi-gph-sub');
+  if(elGphSub) elGphSub.textContent = `Max: 40 | Placed: ${c.total_placed} (${c.Np.toFixed(1)}%) | Higher: ${c.total_higher} (${c.Nhs.toFixed(1)}%)`;
+  const elGue = document.getElementById('kpi-gue');
+  if(elGue) elGue.textContent = c.GUE.toFixed(2);
+  const elGueSub = document.getElementById('kpi-gue-sub');
+  if(elGueSub) elGueSub.textContent = `Max: 15 | Graduated: ${c.total_graduated} (${c.Ng.toFixed(1)}%)`;
+  const elGms = document.getElementById('kpi-gms');
+  if(elGms) elGms.textContent = c.GMS.toFixed(2);
+  const elGmsSub = document.getElementById('kpi-gms-sub');
+  if(elGmsSub) elGmsSub.textContent = `Max: 25 | Avg Median: ₹${(c.avg_median_salary||0).toLocaleString('en-IN')}`;
+  const elGphd = document.getElementById('kpi-gphd');
+  if(elGphd) elGphd.textContent = c.GPHD.toFixed(2);
+  const elGphdSub = document.getElementById('kpi-gphd-sub');
+  if(elGphdSub) elGphdSub.textContent = `Max: 20 | Full-Time: ${c.phd_full} | Part-Time: ${c.phd_part}`;
+
+  // Live update calculation tab cards
+  const calcGph = document.getElementById('calc-kpi-gph');
+  if(calcGph) calcGph.textContent = `${c.GPH.toFixed(2)} / 40`;
+  const calcGue = document.getElementById('calc-kpi-gue');
+  if(calcGue) calcGue.textContent = `${c.GUE.toFixed(2)} / 15`;
+  const calcGms = document.getElementById('calc-kpi-gms');
+  if(calcGms) calcGms.textContent = `${c.GMS.toFixed(2)} / 25`;
+  const calcGphd = document.getElementById('calc-kpi-gphd');
+  if(calcGphd) calcGphd.textContent = `${c.GPHD.toFixed(2)} / 20`;
 }
 
 // ══════════════════════════════════════════════════
-// OI DEPT — from provided formula exactly
+// OI DEPT — MongoDB "oi_data" integration (UG 4-Year Program)
 // ══════════════════════════════════════════════════
-function renderOIDept(){
+async function fetchDepartmentOIFromDB(deptId){
+  if(!deptId) return null;
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/oi/${deptId}?_t=${Date.now()}`, { cache: 'no-cache' });
+    if(!res.ok) return null;
+    const json = await res.json();
+    if(json.success && json.data){
+      if(!S.oi) S.oi = {};
+      const d = json.data;
+      const ug4 = d.ug4 || {};
+      S.oi[deptId] = {
+        ug4: {
+          program: 'UG (4-Year Program)',
+          ts: Number(ug4.ts || 0),
+          male: Number(ug4.male || 0),
+          female: Number(ug4.female || 0),
+          os: Number(ug4.os || 0),
+          oc: Number(ug4.oc || 0),
+          ews: Number(ug4.ews || 0),
+          sc_st_obc: Number(ug4.sc_st_obc || 0),
+          govt_sch: Number(ug4.govt_sch || 0),
+          inst_sch: Number(ug4.inst_sch || 0),
+          priv_sch: Number(ug4.priv_sch || 0)
+        },
+        ug5: { ts: 0, male: 0, female: 0, os: 0, oc: 0, ews: 0, sc_st_obc: 0, govt_sch: 0, inst_sch: 0, priv_sch: 0 },
+        pg: { ts: 0, male: 0, female: 0, os: 0, oc: 0, ews: 0, sc_st_obc: 0, govt_sch: 0, inst_sch: 0, priv_sch: 0 },
+        pcs_score: Number(d.pcs_score !== undefined ? d.pcs_score : 20)
+      };
+      save();
+      return S.oi[deptId];
+    }
+  } catch(e){
+    // Network / backend offline fallback
+  }
+  return null;
+}
+
+function renderOIDept(activeTabId, skipFetch){
   const id=CU.deptId;const dept=DEPTS.find(d=>d.id===id);
   document.getElementById('tb-title').textContent='OI — '+dept.short;
-  const oi=S.oi[id]||genOI(id);const c=calcOI(id);
-  const progTypes=[['ug4','UG (4-Year Program)'],['ug5','UG (5-Year Program)'],['pg','PG (2-Year Program)']];
+  if(!S.oi) S.oi={};
+  if(!S.oi[id]) S.oi[id]=genOI(id);
+
+  // Always fetch fresh OI data from MongoDB database asynchronously in the background
+  if(!skipFetch){
+    fetchDepartmentOIFromDB(id).then(data => {
+      if(data && CURRENT_PAGE === 'oi-dept'){
+        const currentActiveTab = document.querySelector('.tabs .tab.active')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1] || activeTabId || 'oi-data';
+        renderOIDept(currentActiveTab, true);
+      }
+    });
+  }
+
+  const activeTab = activeTabId || 'oi-data';
+  const oi=S.oi[id];const c=calcOI(id);
+  const d=oi.ug4||{};
   document.getElementById('mc').innerHTML=`
     <div class="bc">Dashboard <span>›</span> OI</div>
     <div class="flex ic jb mb4">
       <div><div class="stitle">Outreach &amp; Inclusivity (OI)</div><div class="ssub">Sub-parameters: Regional Diversity (RD) · Women Diversity (WD) · Economic Support (ESCS) · Curriculum Structure (PCS)</div></div>
       <button class="btn btn-red btn-sm" onclick="clearOIData()">🗑 Clear All OI Data</button>
     </div>
-    <div class="sring">
-      <div><div class="big">${c.OI_100.toFixed(2)}</div><div class="slbl">OI Score (out of 100)</div></div>
+    <div class="sring" style="margin-bottom:14px">
+      <div><div class="big" id="oi-score-big">${c.OI_100.toFixed(2)}</div><div class="slbl">OI Score (out of 100)</div></div>
       <div style="flex:1">
-        <div class="pb" style="height:14px"><div class="pf pf-n" style="width:${Math.min(c.OI_100,100).toFixed(0)}%"></div></div>
-        <div style="font-size:11px;opacity:.55;margin-top:5px">RD: ${c.RD.toFixed(2)} &nbsp;|&nbsp; WD: ${c.WD.toFixed(2)} &nbsp;|&nbsp; ESCS: ${c.ESCS.toFixed(2)} &nbsp;|&nbsp; PCS: ${c.PCS.toFixed(2)}</div>
+        <div class="pb" style="height:14px"><div class="pf pf-n" id="oi-score-pf" style="width:${Math.min(c.OI_100,100).toFixed(0)}%"></div></div>
+        <div style="font-size:12px;opacity:.75;margin-top:6px;font-weight:600">Weight: 15% | Total OI = RD (30) + WD (30) + ESCS (20) + PCS (20) &nbsp;|&nbsp; Scaled: ${(c.OI_100*0.15).toFixed(2)} / 15</div>
+      </div>
+    </div>
+    <div class="mcg" style="margin-bottom:18px">
+      <div class="mc tel">
+        <div class="mlbl">RD — Regional Diversity</div>
+        <div class="mval" id="kpi-rd">${c.RD.toFixed(2)}</div>
+        <div class="msub" id="kpi-rd-sub">Max: 30 | OS: ${c.OS} · OC: ${c.OC} (Total: ${c.TS})</div>
+      </div>
+      <div class="mc ppl">
+        <div class="mlbl">WD — Women Diversity</div>
+        <div class="mval" id="kpi-wd">${c.WD.toFixed(2)}</div>
+        <div class="msub" id="kpi-wd-sub">Max: 30 | Women Students: ${c.NWS_pct.toFixed(1)}% | Faculty: ${c.NWF_pct.toFixed(1)}%</div>
+      </div>
+      <div class="mc gld">
+        <div class="mlbl">ESCS — Economically &amp; Socially Challenged</div>
+        <div class="mval" id="kpi-escs">${c.ESCS.toFixed(2)}</div>
+        <div class="msub" id="kpi-escs-sub">Max: 20 | Scholarships: ${c.FTRS} (${c.TS>0?((c.FTRS/c.TS)*100).toFixed(1):0}%)</div>
+      </div>
+      <div class="mc grn">
+        <div class="mlbl">PCS — Facilities for Physically Challenged</div>
+        <div class="mval" id="kpi-pcs">${c.PCS.toFixed(2)}</div>
+        <div class="msub" id="kpi-pcs-sub">Max: 20 | Verified Audit Score</div>
       </div>
     </div>
     <div class="tabs">
-      <div class="tab active" onclick="swTab(this,'oi-data')">Student Data Entry</div>
-      <div class="tab" onclick="swTab(this,'oi-pcs')">PCS Score</div>
-      <div class="tab" onclick="swTab(this,'oi-res')">OI Calculation</div>
+      <div class="tab ${activeTab==='oi-data'?'active':''}" onclick="swTab(this,'oi-data')">Student Data Entry</div>
+      <div class="tab ${activeTab==='oi-pcs'?'active':''}" onclick="swTab(this,'oi-pcs')">PCS Score</div>
+      <div class="tab ${activeTab==='oi-res'?'active':''}" onclick="swTab(this,'oi-res')">OI Calculation</div>
     </div>
-    <div class="tbc active" id="oi-data">
-      <div class="card"><div class="ch"><h3>Student Diversity &amp; Support Data</h3><button class="btn btn-red btn-sm" onclick="clearOIData()">🗑 Clear Data</button></div>
+    <div class="tbc ${activeTab==='oi-data'?'active':''}" id="oi-data">
+      <div class="card"><div class="ch"><h3>Student Diversity &amp; Support Data — UG (4-Year Program)</h3><button class="btn btn-red btn-sm" onclick="clearOIData()">🗑 Clear Data</button></div>
         <div class="cb">
-          <div class="alt alt-i">Enter headcount data for each program type. These feed into RD (Regional Diversity), WD (Women Diversity), ESCS (Economically Weaker Sections).</div>
+          <div class="alt alt-i">Department-wise headcount data for <b>UG (4-Year Program)</b>. These attributes feed into RD (Regional Diversity), WD (Women Diversity), and ESCS (Economically Weaker Sections).</div>
           <div class="tw"><table>
             <thead><tr><th>Program</th><th>Total Students (TS)</th><th>Male</th><th>Female</th><th>Outside State (OS)</th><th>Outside Country (OC)</th><th>EWS</th><th>SC/ST/OBC</th><th>Govt Scholarship</th><th>Inst Scholarship</th><th>Private Scholarship</th></tr></thead>
             <tbody>
-              ${progTypes.map(([prog,label])=>{
-                const d=oi[prog]||{};
-                return`<tr>
-                  <td><b>${label}</b></td>
-                  ${['ts','male','female','os','oc','ews','sc_st_obc','govt_sch','inst_sch','priv_sch'].map(f=>`<td><input type="number" class="inp" id="oi-${prog}-${f}" value="${d[f]||0}" min="0" onchange="saveOI()" style="width:80px"></td>`).join('')}
-                </tr>`;}).join('')}
+              <tr>
+                <td><b>UG (4-Year Program)</b></td>
+                <td><input type="number" class="inp" id="oi-ug4-ts" value="${d.ts||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+                <td><input type="number" class="inp" id="oi-ug4-male" value="${d.male||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+                <td><input type="number" class="inp" id="oi-ug4-female" value="${d.female||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+                <td><input type="number" class="inp" id="oi-ug4-os" value="${d.os||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+                <td><input type="number" class="inp" id="oi-ug4-oc" value="${d.oc||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+                <td><input type="number" class="inp" id="oi-ug4-ews" value="${d.ews||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+                <td><input type="number" class="inp" id="oi-ug4-sc_st_obc" value="${d.sc_st_obc||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+                <td><input type="number" class="inp" id="oi-ug4-govt_sch" value="${d.govt_sch||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+                <td><input type="number" class="inp" id="oi-ug4-inst_sch" value="${d.inst_sch||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+                <td><input type="number" class="inp" id="oi-ug4-priv_sch" value="${d.priv_sch||0}" min="0" onchange="saveOI()" style="width:80px"></td>
+              </tr>
             </tbody>
           </table></div>
-          <button class="btn btn-pri" style="margin-top:12px" onclick="saveOI()">Save & Calculate</button>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+            <button class="btn btn-pri" onclick="saveOI()">Save & Calculate</button>
+            <span id="oi-save-status"></span>
+          </div>
         </div>
       </div>
     </div>
-    <div class="tbc" id="oi-pcs">
+    <div class="tbc ${activeTab==='oi-pcs'?'active':''}" id="oi-pcs">
       <div class="card"><div class="ch"><h3>PCS — Programs with Curriculum &amp; Syllabi Structured (20 marks)</h3></div>
         <div class="cb">
           <div class="alt alt-i">PCS is awarded based on availability of published curriculum, syllabi & program outcomes. Default is 20 (full marks). Modify only if audit reveals gaps.</div>
           <div class="frow fc2">
             <div class="fl"><label>PCS Score (max 20)</label>
-              <input type="number" id="pcs_score" class="inp" value="${oi.pcs_score||20}" min="0" max="20" onchange="saveOI()">
+              <input type="number" id="pcs_score" class="inp" value="${oi.pcs_score!==undefined?oi.pcs_score:20}" min="0" max="20" onchange="saveOI()">
               <div class="hint">Score between 0 and 20</div>
             </div>
           </div>
-          <button class="btn btn-pri" onclick="saveOI()">Save & Calculate</button>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+            <button class="btn btn-pri" onclick="saveOI()">Save & Calculate</button>
+            <span id="oi-pcs-save-status"></span>
+          </div>
         </div>
       </div>
     </div>
-    <div class="tbc" id="oi-res">
-      <div class="card"><div class="ch"><h3>OI Score — Step-by-step Calculation</h3></div>
-        <div class="cb"><div class="cbox" id="oi-calc-box"></div></div>
+    <div class="tbc ${activeTab==='oi-res'?'active':''}" id="oi-res">
+      <div class="card"><div class="ch"><h3>OI Parameter Breakdown &amp; Calculation</h3></div>
+        <div class="cb">
+          <div class="mcg" style="margin-bottom:16px">
+            <div class="mc tel">
+              <div class="mlbl">RD Score</div>
+              <div class="mval" id="calc-kpi-rd">${c.RD.toFixed(2)} / 30</div>
+              <div class="msub">25 × (OS/TS) + 5 × (OC/TS)</div>
+            </div>
+            <div class="mc ppl">
+              <div class="mlbl">WD Score</div>
+              <div class="mval" id="calc-kpi-wd">${c.WD.toFixed(2)} / 30</div>
+              <div class="msub">min(15×NWS%/50, 15) + min(15×NWF%/20, 15)</div>
+            </div>
+            <div class="mc gld">
+              <div class="mlbl">ESCS Score</div>
+              <div class="mval" id="calc-kpi-escs">${c.ESCS.toFixed(2)} / 20</div>
+              <div class="msub">20 × (FTRS / TS)</div>
+            </div>
+            <div class="mc grn">
+              <div class="mlbl">PCS Score</div>
+              <div class="mval" id="calc-kpi-pcs">${c.PCS.toFixed(2)} / 20</div>
+              <div class="msub">Facilities &amp; Curriculum Audit</div>
+            </div>
+          </div>
+          <div class="cbox" id="oi-calc-box"></div>
+        </div>
       </div>
     </div>`;
   updateOICalc();
 }
 
-function saveOI(){
+async function saveOI(){
   const id=CU.deptId;
+  if(!S.oi) S.oi={};
   if(!S.oi[id]) S.oi[id]=genOI(id);
-  ['ug4','ug5','pg'].forEach(prog=>{
-    S.oi[id][prog]={};
-    ['ts','male','female','os','oc','ews','sc_st_obc','govt_sch','inst_sch','priv_sch'].forEach(f=>{
-      const el=document.getElementById(`oi-${prog}-${f}`);
-      if(el) S.oi[id][prog][f]=Number(el.value)||0;
-    });
-  });
-  S.oi[id].pcs_score=Number(document.getElementById('pcs_score')?.value)||20;
-  save();audit(CU.name,id,'OI','Data updated');
+
+  const getNum = (fid) => Number(document.getElementById(fid)?.value) || 0;
+  S.oi[id].ug4 = {
+    program: 'UG (4-Year Program)',
+    ts: getNum('oi-ug4-ts'),
+    male: getNum('oi-ug4-male'),
+    female: getNum('oi-ug4-female'),
+    os: getNum('oi-ug4-os'),
+    oc: getNum('oi-ug4-oc'),
+    ews: getNum('oi-ug4-ews'),
+    sc_st_obc: getNum('oi-ug4-sc_st_obc'),
+    govt_sch: getNum('oi-ug4-govt_sch'),
+    inst_sch: getNum('oi-ug4-inst_sch'),
+    priv_sch: getNum('oi-ug4-priv_sch')
+  };
+  S.oi[id].ug5 = { ts: 0, male: 0, female: 0, os: 0, oc: 0, ews: 0, sc_st_obc: 0, govt_sch: 0, inst_sch: 0, priv_sch: 0 };
+  S.oi[id].pg = { ts: 0, male: 0, female: 0, os: 0, oc: 0, ews: 0, sc_st_obc: 0, govt_sch: 0, inst_sch: 0, priv_sch: 0 };
+
+  const pcsEl = document.getElementById('pcs_score');
+  if(pcsEl) {
+    S.oi[id].pcs_score = Number(pcsEl.value);
+  } else if(S.oi[id].pcs_score === undefined) {
+    S.oi[id].pcs_score = 20;
+  }
+
+  save();
+  audit(CU.name,id,'OI','UG (4-Year Program) data updated');
   updateOICalc();
+
+  // Save to MongoDB database 'oi_data' (table: id)
+  try {
+    const apiBase = (window.location.protocol.startsWith('http') && window.location.port === '5000') 
+      ? '' 
+      : 'http://localhost:5000';
+    const res = await fetch(`${apiBase}/api/oi/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ug4: S.oi[id].ug4,
+        pcs_score: S.oi[id].pcs_score
+      })
+    });
+    const resJson = await res.json();
+    if(res.ok && resJson.success){
+      ['oi-save-status','oi-pcs-save-status'].forEach(sid=>{
+        const el = document.getElementById(sid);
+        if(el){
+          el.innerHTML = `<span style="color:var(--green);font-size:12px;font-weight:700">✅ Saved to MongoDB database "oi_data" (table: ${id})!</span>`;
+          setTimeout(() => { if(el) el.innerHTML = ''; }, 3500);
+        }
+      });
+    }
+  } catch(e){
+    console.warn('Backend OI save warning:', e);
+  }
 }
 
 function updateOICalc(){
   const id=CU.deptId;const c=calcOI(id);
-  const el=document.getElementById('oi-calc-box');if(!el)return;
-  el.innerHTML=`
-    <div class="cs"><span class="cl">Total Students (TS)</span><span class="cv">${c.TS}</span></div>
-    <div class="cs"><span class="cl">Outside State Students (OS)</span><span class="cv">${c.OS}</span></div>
-    <div class="cs"><span class="cl">Outside Country Students (OC)</span><span class="cv">${c.OC}</span></div>
-    <div class="cs"><span class="cl">Regional Diversity Raw</span><span class="cv">${(c.RD+(c.RD>=30?0:0)).toFixed(4)}</span></div>
-    <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">RD Score (Max 30)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.RD.toFixed(4)}</span></div>
-    <div class="cs"><span class="cl">Female Students (NWS)</span><span class="cv">${c.NWS}</span></div>
-    <div class="cs"><span class="cl">Female Students %</span><span class="cv">${c.NWS_pct?.toFixed(2)||0}%</span></div>
-    <div class="cs"><span class="cl">Total Faculty (TF)</span><span class="cv">${c.TF}</span></div>
-    <div class="cs"><span class="cl">Female Faculty (WF)</span><span class="cv">${c.WF}</span></div>
-    <div class="cs"><span class="cl">Female Faculty %</span><span class="cv">${c.NWF_pct?.toFixed(2)||0}%</span></div>
-    <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">WD Score (Max 30)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.WD.toFixed(4)}</span></div>
-    <div class="cs"><span class="cl">Total Scholarship Recipients (FTRS)</span><span class="cv">${c.FTRS}</span></div>
-    <div class="cs"><span class="cl">Scholarship Coverage %</span><span class="cv">${c.TS>0?((c.FTRS/c.TS)*100).toFixed(2):0}%</span></div>
-    <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">ESCS Score (Max 20)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.ESCS.toFixed(4)}</span></div>
-    <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">PCS Score (Max 20)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.PCS.toFixed(2)}</span></div>
-    <div class="cs"><span class="cl" style="font-weight:900;color:var(--navy);font-size:13px">OI Total (out of 100)</span><span class="cv" style="font-weight:900;color:var(--navy);font-size:13px">${c.OI_100.toFixed(4)}</span></div>
-    <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">OI Score (out of 10)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.OI_10.toFixed(4)}</span></div>`;
+  const el=document.getElementById('oi-calc-box');
+  if(el){
+    el.innerHTML=`
+      <div class="cs"><span class="cl">Total Students (TS)</span><span class="cv">${c.TS}</span></div>
+      <div class="cs"><span class="cl">Outside State Students (OS)</span><span class="cv">${c.OS}</span></div>
+      <div class="cs"><span class="cl">Outside Country Students (OC)</span><span class="cv">${c.OC}</span></div>
+      <div class="cs"><span class="cl">Regional Diversity Raw</span><span class="cv">${(c.RD+(c.RD>=30?0:0)).toFixed(4)}</span></div>
+      <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">RD Score (Max 30)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.RD.toFixed(4)}</span></div>
+      <div class="cs"><span class="cl">Female Students (NWS)</span><span class="cv">${c.NWS}</span></div>
+      <div class="cs"><span class="cl">Female Students %</span><span class="cv">${c.NWS_pct?.toFixed(2)||0}%</span></div>
+      <div class="cs"><span class="cl">Total Faculty (TF)</span><span class="cv">${c.TF}</span></div>
+      <div class="cs"><span class="cl">Female Faculty (WF)</span><span class="cv">${c.WF}</span></div>
+      <div class="cs"><span class="cl">Female Faculty %</span><span class="cv">${c.NWF_pct?.toFixed(2)||0}%</span></div>
+      <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">WD Score (Max 30)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.WD.toFixed(4)}</span></div>
+      <div class="cs"><span class="cl">Total Scholarship Recipients (FTRS)</span><span class="cv">${c.FTRS}</span></div>
+      <div class="cs"><span class="cl">Scholarship Coverage %</span><span class="cv">${c.TS>0?((c.FTRS/c.TS)*100).toFixed(2):0}%</span></div>
+      <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">ESCS Score (Max 20)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.ESCS.toFixed(4)}</span></div>
+      <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">PCS Score (Max 20)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.PCS.toFixed(2)}</span></div>
+      <div class="cs"><span class="cl" style="font-weight:900;color:var(--navy);font-size:13px">OI Total (out of 100)</span><span class="cv" style="font-weight:900;color:var(--navy);font-size:13px">${c.OI_100.toFixed(4)}</span></div>
+      <div class="cs"><span class="cl" style="font-weight:800;color:var(--navy)">OI Score (out of 10)</span><span class="cv" style="font-weight:800;color:var(--navy)">${c.OI_10.toFixed(4)}</span></div>`;
+  }
+
+  // Live update main top KPI cards
+  const elBig = document.getElementById('oi-score-big');
+  if(elBig) elBig.textContent = c.OI_100.toFixed(2);
+  const elPf = document.getElementById('oi-score-pf');
+  if(elPf) elPf.style.width = Math.min(c.OI_100, 100).toFixed(0) + '%';
+  const elRd = document.getElementById('kpi-rd');
+  if(elRd) elRd.textContent = c.RD.toFixed(2);
+  const elRdSub = document.getElementById('kpi-rd-sub');
+  if(elRdSub) elRdSub.textContent = `Max: 30 | OS: ${c.OS} · OC: ${c.OC} (Total: ${c.TS})`;
+  const elWd = document.getElementById('kpi-wd');
+  if(elWd) elWd.textContent = c.WD.toFixed(2);
+  const elWdSub = document.getElementById('kpi-wd-sub');
+  if(elWdSub) elWdSub.textContent = `Max: 30 | Women Students: ${c.NWS_pct.toFixed(1)}% | Faculty: ${c.NWF_pct.toFixed(1)}%`;
+  const elEscs = document.getElementById('kpi-escs');
+  if(elEscs) elEscs.textContent = c.ESCS.toFixed(2);
+  const elEscsSub = document.getElementById('kpi-escs-sub');
+  if(elEscsSub) elEscsSub.textContent = `Max: 20 | Scholarships: ${c.FTRS} (${c.TS>0?((c.FTRS/c.TS)*100).toFixed(1):0}%)`;
+  const elPcs = document.getElementById('kpi-pcs');
+  if(elPcs) elPcs.textContent = c.PCS.toFixed(2);
+
+  // Live update calculation tab cards
+  const calcRd = document.getElementById('calc-kpi-rd');
+  if(calcRd) calcRd.textContent = `${c.RD.toFixed(2)} / 30`;
+  const calcWd = document.getElementById('calc-kpi-wd');
+  if(calcWd) calcWd.textContent = `${c.WD.toFixed(2)} / 30`;
+  const calcEscs = document.getElementById('calc-kpi-escs');
+  if(calcEscs) calcEscs.textContent = `${c.ESCS.toFixed(2)} / 20`;
+  const calcPcs = document.getElementById('calc-kpi-pcs');
+  if(calcPcs) calcPcs.textContent = `${c.PCS.toFixed(2)} / 20`;
 }
 
 // ══════════════════════════════════════════════════
@@ -3879,11 +5923,24 @@ function clearGOData(section){
   }
 }
 
-function clearOIData(){
+async function clearOIData(){
   if(!confirm('Clear ALL OI (Outreach & Inclusivity) data for this department? This cannot be undone.')) return;
   const id=CU.deptId;
-  S.oi[id]=genOI(id);
+  S.oi[id]={
+    ug4: { program: 'UG (4-Year Program)', ts:0, male:0, female:0, os:0, oc:0, ews:0, sc_st_obc:0, govt_sch:0, inst_sch:0, priv_sch:0 },
+    ug5: { ts:0, male:0, female:0, os:0, oc:0, ews:0, sc_st_obc:0, govt_sch:0, inst_sch:0, priv_sch:0 },
+    pg: { ts:0, male:0, female:0, os:0, oc:0, ews:0, sc_st_obc:0, govt_sch:0, inst_sch:0, priv_sch:0 },
+    pcs_score: 20
+  };
   save();audit(CU.name,id,'OI','All data cleared');
+  try{
+    const apiBase=(window.location.protocol.startsWith('http')&&window.location.port==='5000')?'':'http://localhost:5000';
+    await fetch(`${apiBase}/api/oi/${id}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ug4:S.oi[id].ug4,pcs_score:20})
+    });
+  }catch(e){}
   renderOIDept();
 }
 
